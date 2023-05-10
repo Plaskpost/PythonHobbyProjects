@@ -3,10 +3,10 @@ import pygame
 
 class Rending2D:
 
-    def __init__(self, dynamicMaze, pos_tile, pos_coordinates, player_radius):
+    def __init__(self, dynamicMaze, pos_tile, pos_coordinates, player_radius, tile_size):
         self.WIDTH = 1200
         self.HEIGHT = 800
-        self.SQUARE_SIZE = 80
+        self.SQUARE_SIZE = tile_size
         self.WALL_THICKNESS = 5  # *2
         self.SQUARE_COLOR = (255, 255, 255)
         self.BG_COLOR = (60, 60, 60)
