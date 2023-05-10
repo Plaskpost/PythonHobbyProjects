@@ -32,7 +32,7 @@ def quad_partner(s):
 
 
 def quad_partner_in_keys(s, adjacency_map):
-    return len(s) >= 4 and check_opposites(s[-1], s[-4]) and quad_partner(s) in adjacency_map
+    return len(s) >= 4 and check_opposites(s[-1], s[-4]) and s[-2] == s[-3] and quad_partner(s) in adjacency_map
 
 
 # Main function

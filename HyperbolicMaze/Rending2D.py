@@ -3,33 +3,39 @@ import pygame
 
 class Rending2D:
 
-    def __init__(self, dynamicMaze, pos):
+    def __init__(self, dynamicMaze, pos_tile, pos_coordinates, player_radius):
         self.WIDTH = 1200
         self.HEIGHT = 800
         self.SQUARE_SIZE = 80
-        self.WALL_THICKNESS = 4  # *2
+        self.WALL_THICKNESS = 5  # *2
         self.SQUARE_COLOR = (255, 255, 255)
+        self.BG_COLOR = (60, 60, 60)
         self.WALL_COLOR = (0, 0, 0)
         self.DOT_COLOR = (255, 0, 0)
-        self.DOT_SIZE = 10
+        self.DOT_SIZE = player_radius
         pygame.init()
         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
         pygame.display.set_caption("Overview")
-        self.screen.fill((50, 50, 50))
+        self.screen.fill(self.BG_COLOR)
+        self.font = pygame.font.SysFont('arial', 12)
         self.maze = dynamicMaze
-        self.update(pos)
+        self.update(pos_tile, pos_coordinates)
 
-    def update(self, tile):
-        self.update_recursive(tile, None, (0, 0))
-        pygame.draw.circle(self.screen, self.DOT_COLOR, ((self.WIDTH-(self.DOT_SIZE//2))//2, (self.HEIGHT-(self.DOT_SIZE//2))//2), 10)
+    def update(self, tile, player_position):
+        self.screen.fill(self.BG_COLOR)
+        self.update_recursive(tile, None, (0, 0), player_position)
+        pygame.draw.circle(self.screen, self.DOT_COLOR, ((self.WIDTH-self.SQUARE_SIZE)//2, (self.HEIGHT-self.SQUARE_SIZE)//2), 10)
         pygame.display.flip()
+        pygame.display.update()
 
-    def update_recursive(self, tile, prev_tile, screen_position):
+    def update_recursive(self, tile, prev_tile, screen_position, player_position):
         if not self.maze.visibility_map[tile]:
             return
-        square_x = screen_position[0] * self.SQUARE_SIZE + (self.WIDTH - self.SQUARE_SIZE) // 2
-        square_y = screen_position[1] * self.SQUARE_SIZE + (self.HEIGHT - self.SQUARE_SIZE) // 2
+        square_x = -player_position[0] + screen_position[0] * self.SQUARE_SIZE + (self.WIDTH - self.SQUARE_SIZE) // 2
+        square_y = -player_position[1] + screen_position[1] * self.SQUARE_SIZE + (self.HEIGHT - self.SQUARE_SIZE) // 2
         pygame.draw.rect(self.screen, self.SQUARE_COLOR, ((square_x, square_y), (self.SQUARE_SIZE, self.SQUARE_SIZE)))
+        text = self.font.render(tile, True, (0, 0, 0))
+        self.screen.blit(text, (square_x+12, square_y+12))
 
         shifts = [[0, 1], [1, 0], [0, -1], [-1, 0]]
         for i in range(4):
@@ -42,7 +48,7 @@ class Rending2D:
                     continue
                 x = screen_position[0] + shifts[i][0]
                 y = screen_position[1] + shifts[i][1]
-                self.update_recursive(neighbor, tile, (x, y))
+                self.update_recursive(neighbor, tile, (x, y), player_position)
 
     def where_wall(self, i, pos):
         x, y, w, h = None, None, None, None

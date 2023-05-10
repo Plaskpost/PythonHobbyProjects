@@ -17,10 +17,13 @@ class DynamicMaze:
         self.wall_map[tile] = [0, 0, 0, 0]
         self.visibility_map[tile] = False
 
+    def update_visibility(self, tile):
+        self.update_visibility_recursive(tile, "", 2)  # Always up?
+
     # Recursive. Should update self.visibility_map following a given position.
-    def update_visibility(self, tile, move_sequence, face_direction):  # (string, string, int)
+    def update_visibility_recursive(self, tile, move_sequence, face_direction):  # (string, string, int)
         tile_visible = check_visibility(move_sequence)
-        print('Moves ', move_sequence, ' claimed visibility ', tile_visible)
+        #print('Moves ', move_sequence, ' claimed visibility ', tile_visible)
         self.visibility_map[tile] = tile_visible
         if tile_visible:
             turn_letters = ['F', 'L', 'B', 'R']
@@ -32,7 +35,7 @@ class DynamicMaze:
                     continue
                 neighbor = self.adjacency_map[tile][new_direction]
                 self.make_walls(neighbor)  # This statement first guarantees that the next cannot find a '0' in wall_map
-                self.update_visibility(neighbor, move_sequence+turn_letters[turning], new_direction)
+                self.update_visibility_recursive(neighbor, move_sequence+turn_letters[turning], new_direction)
 
     def make_walls(self, tile):
         if tile not in self.adjacency_map:  # Shouldn't trigger because make_walls adds all neighbors.
@@ -67,7 +70,7 @@ def compute_if_wall(num_walls, wall_vec):
 
 
 def check_visibility(move_sequence):
-    if len(move_sequence) < 3:
+    if len(move_sequence) < 16:
         return True
     tail = move_sequence[-3:]
     if tail[:2] == 'FF':

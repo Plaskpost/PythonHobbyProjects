@@ -1,0 +1,64 @@
+Rules:
+1. Add "D", "R", "U", "L" to the current string (Down, Right, Up, Left).
+2. Any last two letters being opposites ("DU", "UD", "LR", "RL) are removed.
+3. Whenever the third last letter and the last letter of an element are opposites,
+the newly added letter is removed and the last two are flipped.
+4. If the last letter and the fourth last letter are opposites, the entry stays unless
+the same string with a specific quadruple at the end is included in the list according to the following pairs:
+
+LDDR <-> DLLU
+RDDL <-> DRRU
+LUUR <-> ULLD
+RUUL <-> URRD
+
+If the statement holds true for the key string, it is excluded from the map.
+
+Some examples:
+
+"": ["D", "R", "U", "L"],
+"D": ["DD", "DR", "", "DL"], 
+"R": ["RD", "RR", "RU", ""], 
+"U": ["", "UR", "UU", "UL"], 
+"L": ["LD", "", "LU", "LL"],
+"DR": ["DRD", "DRR", "RD", "D"],
+"DL": ["DLD", "D", "LD", "DLL"],
+"LD": ["LDD", "DL", "L", "LDL"], 
+"LDDL": ["LDDLD", "LDLD", "LDD", "LDDLL"], 
+"LDLD": ["LDLDD", "LDL", "LDDL", "LDLDL"], 
+"LLL": ["LLLD", "LL", "LLLU", "LLLL"],
+"LLLU": ["LLL", "LLUL", "LLLUU", "LLLLUL"],  
+
+
+Maze-generating pseudo:
+1. Add all neighbors and generate walls for the current tile and one wall per neighbor tile. 
+2. Repeat for every visible tile.
+
+Wall probability:
+(numWalls-existingWalls) / numZeros
+
+
+Turning list:
+f(0,0) = 0
+f(0,1) = 1
+f(0,2) = 2
+f(0,3) = 3
+f(1,0) = 3
+f(1,1) = 0
+f(1,2) = 1
+f(1,3) = 2
+f(2,0) = 2
+f(2,1) = 3
+f(2,2) = 0
+f(2,3) = 1
+f(3,0) = 1
+f(3,1) = 2
+f(3,2) = 3
+f(3,3) = 0
+f(j,i) = (j-i) % 4
+
+Shifts:
+g(0) = (0,1)
+g(1) = (1,0)
+g(2) = (0,-1)
+g(3) = (-1,0)
+g(k) = 
