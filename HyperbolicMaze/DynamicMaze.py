@@ -70,7 +70,7 @@ def compute_if_wall(num_walls, wall_vec):
 
 
 def check_visibility(move_sequence):
-    if len(move_sequence) < 16:
+    if len(move_sequence) < 4:
         return True
     tail = move_sequence[-3:]
     if tail[:2] == 'FF':
