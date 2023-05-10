@@ -25,7 +25,7 @@ class Rending2D:
     def update(self, tile, player_position):
         self.screen.fill(self.BG_COLOR)
         self.update_recursive(tile, None, (0, 0), player_position)
-        pygame.draw.circle(self.screen, self.DOT_COLOR, ((self.WIDTH-self.SQUARE_SIZE)//2, (self.HEIGHT-self.SQUARE_SIZE)//2), 10)
+        pygame.draw.circle(self.screen, self.DOT_COLOR, (self.WIDTH//2-self.SQUARE_SIZE, self.HEIGHT//2-self.SQUARE_SIZE), 10)
         pygame.display.flip()
         pygame.display.update()
 
@@ -36,7 +36,7 @@ class Rending2D:
         # Draw the tile
         square_x = -player_position[0] + screen_position[0] * self.SQUARE_SIZE + (self.WIDTH - self.SQUARE_SIZE) // 2
         square_y = -player_position[1] + screen_position[1] * self.SQUARE_SIZE + (self.HEIGHT - self.SQUARE_SIZE) // 2
-        self.draw_square((square_x, square_y), 45)
+        self.draw_square((square_x, square_y), 0)
 
         # Label the tile
         text = self.font.render(tile, True, self.TEXT_COLOR)
@@ -47,7 +47,7 @@ class Rending2D:
         for i in range(4):
             if self.maze.wall_map[tile][i] == -1:  # If wall draw wall.
                 wall_x, wall_y, wall_w, wall_h = self.where_wall(i, (square_x, square_y))
-                pygame.draw.rect(self.screen, self.WALL_COLOR, ((wall_x, wall_y), (wall_w, wall_h)))
+                #pygame.draw.rect(self.screen, self.WALL_COLOR, ((wall_x, wall_y), (wall_w, wall_h)))
             else:  # Else call drawing function for surrounding tiles.
                 neighbor = self.maze.adjacency_map[tile][i]
                 if neighbor == prev_tile:
