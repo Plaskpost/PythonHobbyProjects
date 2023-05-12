@@ -61,4 +61,12 @@ g(0) = (0,1)
 g(1) = (1,0)
 g(2) = (0,-1)
 g(3) = (-1,0)
-g(k) = 
+g(k) =
+
+Example of index_to():
+direction = "RIGHT"
+last_direction = "UP"
+index_to_last = 2
+goal = 3
+Solution = "The amount of clockwise steps from the opposite of last_direction to direction should be added to index_to_last."
+index_to_next = (((direction - local_direction_to_previous) % 4) + index_to_last) % 4

@@ -9,37 +9,40 @@ class Explorer:
         self.rotation_speed = rotation_speed
         self.tile_size = tile_size
         self.player_radius = player_radius
+        self.directions = ["DOWN", "RIGHT", "UP", "LEFT"]
 
         # Variables
         self.pos = np.array([tile_size / 2.0, tile_size / 2.0])
         self.pos_tile = ""
         self.index_to_previous_tile = 0  # Pointing to 'D' initially.
         self.rotation = 90  # Initially UP.
+        self.local_direction_to_previous = "DOWN"
+
+    def opposite_of(self, direction):
+        return self.directions[(self.directions.index(direction) + 2) % 4]
+
+    def index_to(self, local_next_index):
+        local_previous_index = self.directions.index(self.local_direction_to_previous)
+        # "The amount of clockwise steps from direction_to_previous to direction_to_next is added to index_to_last."
+        return (((local_next_index - local_previous_index) % 4) + self.index_to_previous_tile) % 4
 
     def transfer_tile(self, maze, index_to_new, direction):
         # Change active tile
         new_tile = maze.adjacency_map[self.pos_tile][index_to_new]
         self.index_to_previous_tile = maze.adjacency_map[new_tile].index(self.pos_tile)
         self.pos_tile = new_tile
+        self.local_direction_to_previous = self.opposite_of(direction)
 
         # Change local coordinates
         [x, y] = self.pos
         if direction == "DOWN":
-            x = self.tile_size - x
-            y = -y
-            self.rotate(True, 180)
+            y += self.tile_size
         elif direction == "RIGHT":
-            old_x = x
-            x = self.tile_size - y
-            y = old_x
-            self.rotate(left=False, amount=90)
+            x -= self.tile_size
         elif direction == "UP":
-            y = y - self.tile_size
+            y -= self.tile_size
         elif direction == "LEFT":
-            old_x = x
-            x = y
-            y = old_x
-            self.rotate(left=True, amount=90)
+            x += self.tile_size
         else:
             raise ValueError("Invalid direction!")
         self.pos = np.array([x, y])
@@ -55,15 +58,14 @@ class Explorer:
                      (self.pos[1] >= self.tile_size - self.player_radius), (self.pos[0] < self.player_radius)]
         across_edge = [(self.pos[1] < 0), (self.pos[0] >= self.tile_size),
                        (self.pos[1] >= self.tile_size), (self.pos[0] < 0)]
-        directions = ["DOWN", "RIGHT", "UP", "LEFT"]
         for i in range(4):  # i in {DOWN, RIGHT, UP, LEFT}
-            index_to_tile_ahead = (i + self.index_to_previous_tile) % 4
+            index_to_tile_ahead = self.index_to(i)
             x_or_y = (1 + i) % 2
             wall_ahead = maze.wall_map[self.pos_tile][index_to_tile_ahead] == -1
             if near_edge[i] and wall_ahead:
                 self.pos[x_or_y] -= v[x_or_y]  # Move back.
             elif across_edge[i]:
-                self.transfer_tile(maze, index_to_tile_ahead, directions[i])
+                self.transfer_tile(maze, index_to_tile_ahead, self.directions[i])
 
     def rotate(self, left, amount):
         if left:

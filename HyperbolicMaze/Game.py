@@ -11,8 +11,8 @@ RIGHT = 1
 UP = 2
 LEFT = 3
 
-movement_speed = 1.0
-rotation_speed = 1
+movement_speed = 0.2
+rotation_speed = 0.2
 tile_size = 80
 player_radius = 10
 
@@ -21,9 +21,9 @@ if __name__ == '__main__':
 
     explorer = Explorer(movement_speed, rotation_speed, tile_size, player_radius)
     maze = DynamicMaze(explorer.pos_tile)
-    renderer = Rending2D(maze, explorer.pos_tile, explorer.pos, player_radius, tile_size)
+    renderer = Rending2D(maze, explorer.pos_tile, explorer.pos, explorer.rotation, player_radius, tile_size)
     maze.update_visibility(explorer.pos_tile)
-    renderer.update(explorer.pos_tile, explorer.pos)
+    renderer.update(explorer.pos_tile, explorer.pos, explorer.rotation)
 
     running = True
     while running:
@@ -46,6 +46,6 @@ if __name__ == '__main__':
             explorer.rotate(left=False, amount=rotation_speed)
 
         if keys:
-            renderer.update(explorer.pos_tile, explorer.pos)
+            renderer.update(explorer.pos_tile, explorer.pos, explorer.rotation)
 
     pygame.quit()

@@ -3,7 +3,7 @@ import pygame
 
 class Rending2D:
 
-    def __init__(self, dynamicMaze, pos_tile, pos_coordinates, player_radius, tile_size):
+    def __init__(self, dynamicMaze, pos_tile, pos_coordinates, rotation, player_radius, tile_size):
         self.WIDTH = 1200
         self.HEIGHT = 800
         self.SQUARE_SIZE = tile_size
@@ -20,23 +20,23 @@ class Rending2D:
         self.screen.fill(self.BG_COLOR)
         self.font = pygame.font.SysFont('arial', 12)
         self.maze = dynamicMaze
-        self.update(pos_tile, pos_coordinates)
+        self.update(pos_tile, pos_coordinates, rotation)
 
-    def update(self, tile, player_position):
+    def update(self, tile, player_position, rotation):
         self.screen.fill(self.BG_COLOR)
-        self.update_recursive(tile, None, (0, 0), player_position)
-        pygame.draw.circle(self.screen, self.DOT_COLOR, (self.WIDTH//2-self.SQUARE_SIZE, self.HEIGHT//2-self.SQUARE_SIZE), 10)
+        self.update_recursive(tile, None, (0, 0), player_position, rotation)
+        pygame.draw.circle(self.screen, self.DOT_COLOR, (self.WIDTH//2, self.HEIGHT//2), self.DOT_SIZE)
         pygame.display.flip()
         pygame.display.update()
 
-    def update_recursive(self, tile, prev_tile, screen_position, player_position):
+    def update_recursive(self, tile, prev_tile, screen_position, player_position, rotation):
         if not self.maze.visibility_map[tile]:
             return
 
         # Draw the tile
-        square_x = -player_position[0] + screen_position[0] * self.SQUARE_SIZE + (self.WIDTH - self.SQUARE_SIZE) // 2
-        square_y = -player_position[1] + screen_position[1] * self.SQUARE_SIZE + (self.HEIGHT - self.SQUARE_SIZE) // 2
-        self.draw_square((square_x, square_y), 0)
+        square_x = -player_position[0] + screen_position[0] * self.SQUARE_SIZE + self.WIDTH // 2  # TODO: Make into matrix multiplications
+        square_y = -player_position[1] + screen_position[1] * self.SQUARE_SIZE + self.HEIGHT // 2
+        self.draw_square((square_x, square_y), rotation)
 
         # Label the tile
         text = self.font.render(tile, True, self.TEXT_COLOR)
@@ -54,7 +54,7 @@ class Rending2D:
                     continue
                 x = screen_position[0] + shifts[i][0]
                 y = screen_position[1] + shifts[i][1]
-                self.update_recursive(neighbor, tile, (x, y), player_position)
+                self.update_recursive(neighbor, tile, (x, y), player_position, rotation)
 
     def where_wall(self, i, pos):
         x, y, w, h = None, None, None, None
@@ -86,6 +86,6 @@ class Rending2D:
         rect.fill(self.SQUARE_COLOR)
         square = pygame.Surface((size[0], size[1]), pygame.SRCALPHA)
         pygame.draw.rect(square, self.SQUARE_COLOR, (0, 0, size[0], size[1]))
-        rot_image = pygame.transform.rotate(square, rotation)
+        rot_image = pygame.transform.rotate(square, 360-rotation)
         rot_rect = rot_image.get_rect(center=center)
         self.screen.blit(rot_image, rot_rect)
