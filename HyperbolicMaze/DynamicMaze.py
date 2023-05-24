@@ -5,10 +5,11 @@ import HyperbolicGrid
 
 class DynamicMaze:
 
-    def __init__(self, pos):
+    def __init__(self, pos, average_walls_per_tile):
         self.adjacency_map = {}
         self.wall_map = {}  # 1: passable, -1: wall, 0: unexplored
         self.visibility_map = {}  # True: visible, False: not visible
+        self.average_walls_per_tile = average_walls_per_tile
         self.register_tile(pos)
         self.make_walls(pos)
 
@@ -44,7 +45,7 @@ class DynamicMaze:
         if 0 not in self.wall_map[tile]:
             return
 
-        num_walls = np.round(0.5 * np.random.randn() + 2.0).astype(int)
+        num_walls = np.round(0.5 * np.random.randn() + self.average_walls_per_tile).astype(int)
         for i in range(4):
             neighbor = self.adjacency_map[tile][i]
             if neighbor not in self.adjacency_map:
@@ -52,10 +53,10 @@ class DynamicMaze:
             if self.wall_map[tile][i] == 0:
                 if compute_if_wall(num_walls, self.wall_map[tile]):
                     self.wall_map[tile][i] = -1
-                    self.wall_map[neighbor][i - 2] = -1
+                    self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = -1
                 else:
                     self.wall_map[tile][i] = 1
-                    self.wall_map[neighbor][i - 2] = 1
+                    self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = 1
 
 
 # ----------- Just some help functions ----------------

@@ -11,16 +11,17 @@ RIGHT = 1
 UP = 2
 LEFT = 3
 
-movement_speed = 0.2
+movement_speed = 0.4
 rotation_speed = 0.2  # Ok degrees
 tile_size = 80
 player_radius = 10
+average_walls_per_tile = 1.8
 
 
 if __name__ == '__main__':
 
     explorer = Explorer(movement_speed, rotation_speed, tile_size, player_radius)
-    maze = DynamicMaze(explorer.pos_tile)
+    maze = DynamicMaze(explorer.pos_tile, average_walls_per_tile)
     renderer = Rending2D(maze, explorer, player_radius, tile_size)
     maze.update_visibility(explorer.pos_tile)
     renderer.update()
@@ -33,19 +34,24 @@ if __name__ == '__main__':
 
         # I think this section can look better.
         keys = pygame.key.get_pressed()
+        pressed = False
         arrow_keys = [pygame.K_DOWN, pygame.K_RIGHT, pygame.K_UP,
                       pygame.K_LEFT]  # This way i should match the direction.
 
         if keys[pygame.K_UP]:
             explorer.move(forward=True, maze=maze)
+            pressed = True
         if keys[pygame.K_DOWN]:
             explorer.move(forward=False, maze=maze)
+            pressed = True
         if keys[pygame.K_LEFT]:
             explorer.rotate(left=True, amount=rotation_speed)
+            pressed = True
         if keys[pygame.K_RIGHT]:
             explorer.rotate(left=False, amount=rotation_speed)
+            pressed = True
 
-        if keys:
+        if pressed:
             renderer.update()
 
     pygame.quit()

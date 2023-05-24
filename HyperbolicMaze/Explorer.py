@@ -54,8 +54,10 @@ class Explorer:
         v = heading * self.movement_speed * np.array([math.cos(math.radians(self.rotation)),
                                                       math.sin(math.radians(self.rotation))])
         self.pos += v
-        near_edge = [(self.pos[1] < self.player_radius), (self.pos[0] >= self.tile_size - self.player_radius),
-                     (self.pos[1] >= self.tile_size - self.player_radius), (self.pos[0] < self.player_radius)]
+        near_edge = [(self.pos[1] < self.player_radius and v[1] < 0),
+                     (self.pos[0] >= self.tile_size - self.player_radius and v[0] > 0),
+                     (self.pos[1] >= self.tile_size - self.player_radius and v[1] > 0),
+                     (self.pos[0] < self.player_radius and v[0] < 0)]
         across_edge = [(self.pos[1] < 0), (self.pos[0] >= self.tile_size),
                        (self.pos[1] >= self.tile_size), (self.pos[0] < 0)]
         for i in range(4):  # i in local {DOWN, RIGHT, UP, LEFT}

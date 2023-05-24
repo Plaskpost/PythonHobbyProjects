@@ -15,20 +15,23 @@ class Rending2D:
         self.WALL_COLOR = (0, 0, 0)
         self.TEXT_COLOR = (0, 0, 0)
         self.DOT_COLOR = (255, 0, 0)
+        self.TEXT_SIZE = 12
         self.DOT_SIZE = player_radius
         pygame.init()
         self.screen = pygame.display.set_mode(ndarray_to_tuple(self.SCREEN_SIZE))
         pygame.display.set_caption("Overview")
         self.screen.fill(self.BG_COLOR)
-        self.font = pygame.font.SysFont('arial', 12)
+        self.font = pygame.font.SysFont('arial', self.TEXT_SIZE)
         self.maze = dynamic_maze
         self.explorer = explorer
+        self.initial_rotation = explorer.rotation
         self.update()
 
     def update(self):
         self.screen.fill(self.BG_COLOR)
         self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
         pygame.draw.circle(self.screen, self.DOT_COLOR, ndarray_to_tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
+        self.write_debug_info()
         pygame.display.flip()
         pygame.display.update()
 
@@ -37,16 +40,17 @@ class Rending2D:
             return
 
         # Define some useful parameters
-        rotation_radians = math.radians(self.explorer.rotation)
+        rotation_radians = math.radians(self.explorer.rotation - self.initial_rotation)
+        rotation_degrees = self.explorer.rotation - self.initial_rotation
         rotation_matrix = np.array([[math.cos(rotation_radians), -math.sin(rotation_radians)],
                                     [math.sin(rotation_radians), math.cos(rotation_radians)]])
         flip_y = np.array([1, -1])
 
         # Draw the tile
-        square_center = -flip_y*self.explorer.pos + screen_position * self.SQUARE_SIZE
+        square_center = -flip_y*self.explorer.pos + screen_position * self.SQUARE_SIZE + flip_y*self.SQUARE_SIZE//2
         square_center = np.dot(rotation_matrix, square_center)
         square_center = square_center + self.SCREEN_SIZE//2
-        self.draw_square(ndarray_to_tuple(square_center), self.explorer.rotation)
+        self.draw_square(ndarray_to_tuple(square_center), rotation_degrees)
 
         # Label the tile
         text = self.font.render(tile, True, self.TEXT_COLOR)
@@ -89,6 +93,21 @@ class Rending2D:
             h = self.SQUARE_SIZE + 2*self.WALL_THICKNESS
         return x, y, w, h
 
+    def write_debug_info(self):
+        walkable_directions = ""
+        for i in range(4):
+            if self.maze.wall_map[self.explorer.pos_tile][i] == 1:
+                walkable_directions += self.explorer.directions[i] + "  "
+        convert_to_string = np.vectorize(lambda x: "{:.{}f}".format(x, 1))
+        string_pos = convert_to_string(self.explorer.pos)
+        lines = ["Active tile: " + self.explorer.pos_tile,
+                 "Walkable global directions: " + walkable_directions,
+                 "Position coordinates: (" + string_pos[0] + ", " + string_pos[1] + ")",
+                 "Last local step: " + self.explorer.opposite_of(self.explorer.local_direction_to_previous)]
+        for i in range(len(lines)):
+            text = self.font.render(lines[i], True, (255, 255, 255))
+            self.screen.blit(text, (10, 10 + i*(self.TEXT_SIZE+10)))
+
     def draw_square(self, center, rotation):
         size = (self.SQUARE_SIZE, self.SQUARE_SIZE)
         rect = pygame.Surface(size)
@@ -98,6 +117,7 @@ class Rending2D:
         rot_image = pygame.transform.rotate(square, 360-rotation)
         rot_rect = rot_image.get_rect(center=center)
         self.screen.blit(rot_image, rot_rect)
+
 
 
 def ndarray_to_tuple(ndarray):  # Fixed to 2D because we work in 2D.
