@@ -1,11 +1,13 @@
+import math
+
 import pygame
+import numpy as np
 
 
 class Rending2D:
 
-    def __init__(self, dynamicMaze, pos_tile, pos_coordinates, rotation, player_radius, tile_size):
-        self.WIDTH = 1200
-        self.HEIGHT = 800
+    def __init__(self, dynamic_maze, explorer, player_radius, tile_size):
+        self.SCREEN_SIZE = np.array([1200, 800])
         self.SQUARE_SIZE = tile_size
         self.WALL_THICKNESS = 5  # *2
         self.SQUARE_COLOR = (255, 255, 255)
@@ -15,48 +17,55 @@ class Rending2D:
         self.DOT_COLOR = (255, 0, 0)
         self.DOT_SIZE = player_radius
         pygame.init()
-        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.screen = pygame.display.set_mode(ndarray_to_tuple(self.SCREEN_SIZE))
         pygame.display.set_caption("Overview")
         self.screen.fill(self.BG_COLOR)
         self.font = pygame.font.SysFont('arial', 12)
-        self.maze = dynamicMaze
-        self.update(pos_tile, pos_coordinates, rotation)
+        self.maze = dynamic_maze
+        self.explorer = explorer
+        self.update()
 
-    def update(self, tile, player_position, rotation):
+    def update(self):
         self.screen.fill(self.BG_COLOR)
-        self.update_recursive(tile, None, (0, 0), player_position, rotation)
-        pygame.draw.circle(self.screen, self.DOT_COLOR, (self.WIDTH//2, self.HEIGHT//2), self.DOT_SIZE)
+        self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
+        pygame.draw.circle(self.screen, self.DOT_COLOR, ndarray_to_tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
         pygame.display.flip()
         pygame.display.update()
 
-    def update_recursive(self, tile, prev_tile, screen_position, player_position, rotation):
+    def update_recursive(self, tile, prev_tile, screen_position):
         if not self.maze.visibility_map[tile]:
             return
 
+        # Define some useful parameters
+        rotation_radians = math.radians(self.explorer.rotation)
+        rotation_matrix = np.array([[math.cos(rotation_radians), -math.sin(rotation_radians)],
+                                    [math.sin(rotation_radians), math.cos(rotation_radians)]])
+        flip_y = np.array([1, -1])
+
         # Draw the tile
-        square_x = -player_position[0] + screen_position[0] * self.SQUARE_SIZE + self.WIDTH // 2  # TODO: Make into matrix multiplications
-        square_y = -player_position[1] + screen_position[1] * self.SQUARE_SIZE + self.HEIGHT // 2
-        self.draw_square((square_x, square_y), rotation)
+        square_center = -flip_y*self.explorer.pos + screen_position * self.SQUARE_SIZE
+        square_center = np.dot(rotation_matrix, square_center)
+        square_center = square_center + self.SCREEN_SIZE//2
+        self.draw_square(ndarray_to_tuple(square_center), self.explorer.rotation)
 
         # Label the tile
         text = self.font.render(tile, True, self.TEXT_COLOR)
-        self.screen.blit(text, (square_x+12, square_y+12))
+        self.screen.blit(text, (square_center[0], square_center[1]))
 
-        # Draw walls
-        shifts = [[0, 1], [1, 0], [0, -1], [-1, 0]]
+        shifts = np.array([[0, 1], [1, 0], [0, -1], [-1, 0]])
         for i in range(4):
             if self.maze.wall_map[tile][i] == -1:  # If wall draw wall.
-                wall_x, wall_y, wall_w, wall_h = self.where_wall(i, (square_x, square_y))
-                #pygame.draw.rect(self.screen, self.WALL_COLOR, ((wall_x, wall_y), (wall_w, wall_h)))
+                # Draw walls
+                wall_x, wall_y, wall_w, wall_h = self.where_wall(i, square_center)
+                # pygame.draw.rect(self.screen, self.WALL_COLOR, ((wall_x, wall_y), (wall_w, wall_h)))
             else:  # Else call drawing function for surrounding tiles.
-                neighbor = self.maze.adjacency_map[tile][i]
+                global_index = self.explorer.global_index_to(i)
+                neighbor = self.maze.adjacency_map[tile][global_index]
                 if neighbor == prev_tile:
                     continue
-                x = screen_position[0] + shifts[i][0]
-                y = screen_position[1] + shifts[i][1]
-                self.update_recursive(neighbor, tile, (x, y), player_position, rotation)
+                self.update_recursive(tile=neighbor, prev_tile=tile, screen_position=(screen_position + shifts[i]))
 
-    def where_wall(self, i, pos):
+    def where_wall(self, i, pos):  # Completely incorrect nowdays.
         x, y, w, h = None, None, None, None
         if i == 0:
             x = pos[0] - self.WALL_THICKNESS
@@ -89,3 +98,8 @@ class Rending2D:
         rot_image = pygame.transform.rotate(square, 360-rotation)
         rot_rect = rot_image.get_rect(center=center)
         self.screen.blit(rot_image, rot_rect)
+
+
+def ndarray_to_tuple(ndarray):  # Fixed to 2D because we work in 2D.
+    retval = (ndarray[0], ndarray[1])
+    return retval

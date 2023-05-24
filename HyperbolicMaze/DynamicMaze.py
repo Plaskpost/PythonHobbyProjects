@@ -23,7 +23,6 @@ class DynamicMaze:
     # Recursive. Should update self.visibility_map following a given position.
     def update_visibility_recursive(self, tile, move_sequence, face_direction):  # (string, string, int)
         tile_visible = check_visibility(move_sequence)
-        #print('Moves ', move_sequence, ' claimed visibility ', tile_visible)
         self.visibility_map[tile] = tile_visible
         if tile_visible:
             turn_letters = ['F', 'L', 'B', 'R']

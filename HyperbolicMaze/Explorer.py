@@ -21,10 +21,10 @@ class Explorer:
     def opposite_of(self, direction):
         return self.directions[(self.directions.index(direction) + 2) % 4]
 
-    def index_to(self, local_next_index):
-        local_previous_index = self.directions.index(self.local_direction_to_previous)
+    def global_index_to(self, local_index_to_next_tile):
+        local_index_to_previous_tile = self.directions.index(self.local_direction_to_previous)
         # "The amount of clockwise steps from direction_to_previous to direction_to_next is added to index_to_last."
-        return (((local_next_index - local_previous_index) % 4) + self.index_to_previous_tile) % 4
+        return (((local_index_to_next_tile - local_index_to_previous_tile) % 4) + self.index_to_previous_tile) % 4
 
     def transfer_tile(self, maze, index_to_new, direction):
         # Change active tile
@@ -58,8 +58,8 @@ class Explorer:
                      (self.pos[1] >= self.tile_size - self.player_radius), (self.pos[0] < self.player_radius)]
         across_edge = [(self.pos[1] < 0), (self.pos[0] >= self.tile_size),
                        (self.pos[1] >= self.tile_size), (self.pos[0] < 0)]
-        for i in range(4):  # i in {DOWN, RIGHT, UP, LEFT}
-            index_to_tile_ahead = self.index_to(i)
+        for i in range(4):  # i in local {DOWN, RIGHT, UP, LEFT}
+            index_to_tile_ahead = self.global_index_to(i)
             x_or_y = (1 + i) % 2
             wall_ahead = maze.wall_map[self.pos_tile][index_to_tile_ahead] == -1
             if near_edge[i] and wall_ahead:
