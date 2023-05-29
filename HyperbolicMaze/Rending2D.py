@@ -36,7 +36,7 @@ class Rending2D:
         pygame.display.update()
 
     def update_recursive(self, tile, prev_tile, screen_position):
-        if not self.maze.visibility_map[tile]:
+        if tile not in self.maze.visible_tiles:
             return
 
         # Define some useful parameters

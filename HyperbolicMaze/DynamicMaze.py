@@ -1,4 +1,3 @@
-import random
 import numpy as np
 import HyperbolicGrid
 
@@ -8,7 +7,7 @@ class DynamicMaze:
     def __init__(self, pos, average_walls_per_tile):
         self.adjacency_map = {}
         self.wall_map = {}  # 1: passable, -1: wall, 0: unexplored
-        self.visibility_map = {}  # True: visible, False: not visible
+        self.visible_tiles = set()  # Set of visible tiles
         self.average_walls_per_tile = average_walls_per_tile
         self.register_tile(pos)
         self.make_walls(pos)
@@ -16,26 +15,30 @@ class DynamicMaze:
     def register_tile(self, tile):
         HyperbolicGrid.register_tile(tile, self.adjacency_map)
         self.wall_map[tile] = [0, 0, 0, 0]
-        self.visibility_map[tile] = False
 
     def update_visibility(self, tile):
-        self.update_visibility_recursive(tile, "", 2)  # Always up?
+        self.visible_tiles = set()
+        self.update_visibility_recursive(tile, "")
 
-    # Recursive. Should update self.visibility_map following a given position.
-    def update_visibility_recursive(self, tile, move_sequence, face_direction):  # (string, string, int)
-        tile_visible = check_visibility(move_sequence)
-        self.visibility_map[tile] = tile_visible
-        if tile_visible:
-            turn_letters = ['F', 'L', 'B', 'R']
+    # Recursive. Should update self.visible_tiles following a given position.
+    def update_visibility_recursive(self, tile, move_sequence):  # (string, string, int)
+        if tile in self.visible_tiles:
+            return
+
+        if check_visibility(move_sequence):
+            self.visible_tiles.add(tile)
             for new_direction in range(4):
-                if self.wall_map[tile][new_direction] == -1:  # Walls do not lead to a visible tile.
+                # Walls do not lead to a visible tile.
+                if self.wall_map[tile][new_direction] == -1:
                     continue
-                turning = (new_direction-face_direction) % 4  # face_direction: [D, R, U, L], i: [F, L, B, R]
-                if turning == 2 and len(move_sequence) > 0:  # No need to look where we came from.
+                # No need to look where we came from.
+                if len(move_sequence) >= 2 and HyperbolicGrid.check_opposites(move_sequence[-1], move_sequence[-2]):
                     continue
+
                 neighbor = self.adjacency_map[tile][new_direction]
                 self.make_walls(neighbor)  # This statement first guarantees that the next cannot find a '0' in wall_map
-                self.update_visibility_recursive(neighbor, move_sequence+turn_letters[turning], new_direction)
+                d = ["D", "R", "U", "L"]
+                self.update_visibility_recursive(neighbor, move_sequence+d[new_direction])
 
     def make_walls(self, tile):
         if tile not in self.adjacency_map:  # Shouldn't trigger because make_walls adds all neighbors.
@@ -64,12 +67,13 @@ def compute_if_wall(num_walls, wall_vec):
     num_zeros = wall_vec.count(0)
     existing_walls = wall_vec.count(-1)
     prob = (num_walls - existing_walls) / num_zeros
-    if random.random() < prob:
+    if np.random.random() < prob:
         return True
     return False
 
 
 def check_visibility(move_sequence):
+    print(move_sequence, ": ", len(move_sequence))
     if len(move_sequence) < 4:
         return True
     tail = move_sequence[-3:]

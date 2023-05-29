@@ -1,4 +1,5 @@
 import pygame
+import numpy as np
 
 from DynamicMaze import DynamicMaze
 from Rending2D import Rending2D
@@ -12,7 +13,7 @@ UP = 2
 LEFT = 3
 
 movement_speed = 0.4
-rotation_speed = 0.2  # Ok degrees
+rotation_speed = 0.3  # Ok degrees
 tile_size = 80
 player_radius = 10
 average_walls_per_tile = 1.8
@@ -20,6 +21,7 @@ average_walls_per_tile = 1.8
 
 if __name__ == '__main__':
 
+    np.random.seed(42)
     explorer = Explorer(movement_speed, rotation_speed, tile_size, player_radius)
     maze = DynamicMaze(explorer.pos_tile, average_walls_per_tile)
     renderer = Rending2D(maze, explorer, player_radius, tile_size)
