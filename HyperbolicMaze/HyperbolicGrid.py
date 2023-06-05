@@ -44,7 +44,7 @@ def register_tile(key, adjacency_map):
         print(quad_partner(key), " already exists, so ", key, " is skipped.")
         return False
 
-    values = [key + d[0], key + d[1], key + d[2], key + d[3]]
+    values = [key + d[0], key + d[1], key + d[2], key + d[3]]  # 1.
 
     if len(values[0]) >= 2:  # 2.
         prev_letter_index = d.index(key[-1])
