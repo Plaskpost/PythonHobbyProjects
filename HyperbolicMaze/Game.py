@@ -2,7 +2,8 @@ import pygame
 import numpy as np
 
 from DynamicMaze import DynamicMaze
-from Rending2D import Rending2D
+from Rendering2D import Rendering2D
+from Rendering3D import Rendering3D
 from Explorer import Explorer
 
 
@@ -24,7 +25,7 @@ if __name__ == '__main__':
     np.random.seed(42)
     explorer = Explorer(movement_speed, rotation_speed, tile_size, player_radius)
     maze = DynamicMaze(explorer.pos_tile, average_walls_per_tile)
-    renderer = Rending2D(maze, explorer, player_radius, tile_size)
+    renderer = Rendering3D(maze, explorer)
     maze.update_visibility(explorer.pos_tile)
     renderer.update()
 

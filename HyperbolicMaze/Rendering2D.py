@@ -2,35 +2,63 @@ import math
 
 import pygame
 import numpy as np
+from abc import ABC, abstractmethod
 
 
-class Rending2D:
+class Rendering(ABC):
 
-    def __init__(self, dynamic_maze, explorer, player_radius, tile_size):
+    def __init__(self, caption, dynamic_maze, explorer):
         self.SCREEN_SIZE = np.array([1200, 800])
-        self.SQUARE_SIZE = tile_size
+        self.TEXT_SIZE = 12
+        pygame.init()
+        self.screen = pygame.display.set_mode(tuple(self.SCREEN_SIZE))
+        self.font = pygame.font.SysFont('arial', self.TEXT_SIZE)
+        pygame.display.set_caption(caption)
+        self.maze = dynamic_maze
+        self.explorer = explorer
+
+    @abstractmethod
+    def update(self):
+        pass
+
+    def write_debug_info(self):
+        walkable_directions = ""
+        for i in range(4):
+            if self.maze.wall_map[self.explorer.pos_tile][i] == 1:
+                walkable_directions += self.explorer.directions[i] + "  "
+        convert_to_string = np.vectorize(lambda x: "{:.{}f}".format(x, 1))
+        string_pos = convert_to_string(self.explorer.pos)
+        lines = ["Active tile: " + self.explorer.pos_tile,
+                 "Walkable global directions: " + walkable_directions,
+                 "Position coordinates: (" + string_pos[0] + ", " + string_pos[1] + ")",
+                 "Last local step: " + self.explorer.opposite_of(self.explorer.local_direction_to_previous)]
+        for i in range(len(lines)):
+            text = self.font.render(lines[i], True, (255, 255, 255))
+            self.screen.blit(text, (10, 10 + i*(self.TEXT_SIZE+10)))
+
+
+class Rendering2D(Rendering):
+
+    def __init__(self, dynamic_maze, explorer):
+        super().__init__("Overview", dynamic_maze, explorer)
+        self.SQUARE_SIZE = self.explorer.tile_size
         self.WALL_THICKNESS = 5  # *2
         self.SQUARE_COLOR = (255, 255, 255)
         self.BG_COLOR = (60, 60, 60)
         self.WALL_COLOR = (0, 0, 0)
         self.TEXT_COLOR = (0, 0, 0)
         self.DOT_COLOR = (255, 0, 0)
-        self.TEXT_SIZE = 12
-        self.DOT_SIZE = player_radius
-        pygame.init()
-        self.screen = pygame.display.set_mode(ndarray_to_tuple(self.SCREEN_SIZE))
-        pygame.display.set_caption("Overview")
+
+        self.DOT_SIZE = self.explorer.player_radius
         self.screen.fill(self.BG_COLOR)
-        self.font = pygame.font.SysFont('arial', self.TEXT_SIZE)
-        self.maze = dynamic_maze
-        self.explorer = explorer
+
         self.initial_rotation = explorer.rotation
         self.update()
 
     def update(self):
         self.screen.fill(self.BG_COLOR)
         self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
-        pygame.draw.circle(self.screen, self.DOT_COLOR, ndarray_to_tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
+        pygame.draw.circle(self.screen, self.DOT_COLOR, tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
         self.write_debug_info()
         pygame.display.flip()
         pygame.display.update()
@@ -50,7 +78,7 @@ class Rending2D:
         square_center = -flip_y*self.explorer.pos + screen_position * self.SQUARE_SIZE + flip_y*self.SQUARE_SIZE//2
         square_center = np.dot(rotation_matrix, square_center)
         square_center = square_center + self.SCREEN_SIZE//2
-        self.draw_square(ndarray_to_tuple(square_center), rotation_degrees)
+        self.draw_square(tuple(square_center), rotation_degrees)
 
         # Label the tile
         text = self.font.render(tile, True, self.TEXT_COLOR)
@@ -93,21 +121,6 @@ class Rending2D:
             h = self.SQUARE_SIZE + 2*self.WALL_THICKNESS
         return x, y, w, h
 
-    def write_debug_info(self):
-        walkable_directions = ""
-        for i in range(4):
-            if self.maze.wall_map[self.explorer.pos_tile][i] == 1:
-                walkable_directions += self.explorer.directions[i] + "  "
-        convert_to_string = np.vectorize(lambda x: "{:.{}f}".format(x, 1))
-        string_pos = convert_to_string(self.explorer.pos)
-        lines = ["Active tile: " + self.explorer.pos_tile,
-                 "Walkable global directions: " + walkable_directions,
-                 "Position coordinates: (" + string_pos[0] + ", " + string_pos[1] + ")",
-                 "Last local step: " + self.explorer.opposite_of(self.explorer.local_direction_to_previous)]
-        for i in range(len(lines)):
-            text = self.font.render(lines[i], True, (255, 255, 255))
-            self.screen.blit(text, (10, 10 + i*(self.TEXT_SIZE+10)))
-
     def draw_square(self, center, rotation):
         size = (self.SQUARE_SIZE, self.SQUARE_SIZE)
         rect = pygame.Surface(size)
@@ -118,8 +131,3 @@ class Rending2D:
         rot_rect = rot_image.get_rect(center=center)
         self.screen.blit(rot_image, rot_rect)
 
-
-
-def ndarray_to_tuple(ndarray):  # Fixed to 2D because we work in 2D.
-    retval = (ndarray[0], ndarray[1])
-    return retval
