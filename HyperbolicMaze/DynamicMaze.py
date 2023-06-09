@@ -48,29 +48,34 @@ class DynamicMaze:
         if 0 not in self.wall_map[tile]:
             return
 
-        num_walls = np.round(0.5 * np.random.randn() + self.average_walls_per_tile).astype(int)
         for i in range(4):
-            neighbor = self.adjacency_map[tile][i]
-            if neighbor not in self.adjacency_map:
-                self.register_tile(neighbor)
             if self.wall_map[tile][i] == 0:
-                if compute_if_wall(num_walls, self.wall_map[tile]):
-                    self.wall_map[tile][i] = -1
-                    self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = -1
-                else:
-                    self.wall_map[tile][i] = 1
-                    self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = 1
+                self.place_wall_or_opening(tile, i)
+
+    def place_wall_or_opening(self, tile, global_index):
+        # Line needed here for the Rendering3D strategy.
+        if tile not in self.adjacency_map:
+            HyperbolicGrid.register_tile(tile, self.adjacency_map)
+
+        # I believe it can be done better than setting this every call.
+        num_walls = np.round(0.5 * np.random.randn() + self.average_walls_per_tile).astype(int)
+        num_zeros = self.wall_map[tile].count(0)
+        existing_walls = self.wall_map[tile].count(-1)
+        prob = (num_walls - existing_walls) / num_zeros
+        neighbor = self.adjacency_map[tile][global_index]
+
+        if neighbor not in self.adjacency_map:  # Always add the tile behind the observed border.
+            self.register_tile(neighbor)
+
+        if np.random.random() < prob:
+            self.wall_map[tile][global_index] = -1
+            self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = -1
+        else:
+            self.wall_map[tile][global_index] = 1
+            self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = 1
 
 
 # ----------- Just some help functions ----------------
-def compute_if_wall(num_walls, wall_vec):
-    num_zeros = wall_vec.count(0)
-    existing_walls = wall_vec.count(-1)
-    prob = (num_walls - existing_walls) / num_zeros
-    if np.random.random() < prob:
-        return True
-    return False
-
 
 def check_visibility(move_sequence):
     print(move_sequence, ": ", len(move_sequence))
@@ -81,4 +86,3 @@ def check_visibility(move_sequence):
         return True
 
     return False
-    # TODO: Continue here.

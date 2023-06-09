@@ -17,16 +17,20 @@ movement_speed = 0.4
 rotation_speed = 0.3  # Ok degrees
 tile_size = 80
 player_radius = 10
-average_walls_per_tile = 1.8
+average_walls_per_tile = 2.8
+seed = 44
+fixed_seed = True
 
 
 if __name__ == '__main__':
 
-    np.random.seed(42)
+    if fixed_seed:
+        np.random.seed(seed)
     explorer = Explorer(movement_speed, rotation_speed, tile_size, player_radius)
     maze = DynamicMaze(explorer.pos_tile, average_walls_per_tile)
     renderer = Rendering3D(maze, explorer)
-    maze.update_visibility(explorer.pos_tile)
+    if isinstance(renderer, Rendering2D):
+        maze.update_visibility(explorer.pos_tile)
     renderer.update()
 
     running = True

@@ -3,6 +3,7 @@ import math
 
 
 class Explorer:
+
     def __init__(self, movement_speed, rotation_speed, tile_size, player_radius):
         # Constants
         self.movement_speed = movement_speed
@@ -47,8 +48,6 @@ class Explorer:
             raise ValueError("Invalid direction!")
         self.pos = np.array([x, y])
 
-        maze.update_visibility(self.pos_tile)
-
     def move(self, maze, forward):
         heading = 1 if forward else -1
         v = heading * self.movement_speed * np.array([math.cos(math.radians(self.rotation)),
@@ -68,6 +67,7 @@ class Explorer:
                 self.pos[x_or_y] -= v[x_or_y]  # Move back.
             elif across_edge[i]:
                 self.transfer_tile(maze, index_to_tile_ahead, self.directions[i])
+                #maze.update_visibility(self.pos_tile)  # 2D Strategy only!
 
     def rotate(self, left, amount):
         if left:
@@ -78,3 +78,58 @@ class Explorer:
             self.rotation -= amount
             if self.rotation < 0:
                 self.rotation += 360
+
+    def compute_distance(self, maze, direction):
+        # Indices
+        x = 0
+        y = 1
+
+        pos = self.pos.copy()
+        tile = self.pos_tile
+        distance = 0
+        while True:
+            cos_r = math.cos(math.radians(direction))
+            sin_r = math.sin(math.radians(direction))
+            dx = self.tile_size - pos[x] if cos_r > 0 else pos[x]
+            dy = self.tile_size - pos[y] if sin_r > 0 else pos[y]
+
+            if cos_r == 0.0:
+                dimension_hit = y
+                d = dy
+            elif sin_r == 0.0:
+                dimension_hit = x
+                d = dx
+            else:
+                d_options = np.abs(np.array([dx / cos_r, dy / sin_r]))
+                dimension_hit = np.argmin(d_options)
+                d = d_options[dimension_hit]
+            distance += d  # Update total distance here
+
+            # Which tile are we approaching and update pos for next iteration
+            if dimension_hit == x:
+                if cos_r > 0:
+                    local_border_hit = 1  # RIGHT
+                    pos[x] = 0
+                else:
+                    local_border_hit = 3  # LEFT
+                    pos[x] = self.tile_size
+                pos[y] += d*sin_r
+            else:
+                if sin_r > 0:
+                    local_border_hit = 2  # UP
+                    pos[y] = 0
+                else:
+                    local_border_hit = 0  # DOWN
+                    pos[y] = self.tile_size
+                pos[x] += d*cos_r
+
+            global_border_hit = self.global_index_to(local_border_hit)
+            if maze.wall_map[tile][global_border_hit] == 0:  # Update maze when a 0 is in view
+                maze.place_wall_or_opening(tile, global_border_hit)
+            if maze.wall_map[tile][global_border_hit] == -1:  # Break loop when wall is hit.
+                break
+
+            # Update pos_tile for next iteration
+            tile = maze.adjacency_map[tile][global_border_hit]
+
+        return distance
