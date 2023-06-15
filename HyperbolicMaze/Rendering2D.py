@@ -57,6 +57,7 @@ class Rendering2D(Rendering):
 
     def update(self):
         self.screen.fill(self.BG_COLOR)
+        self.maze.update_visibility(self.explorer.pos_tile)
         self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
         pygame.draw.circle(self.screen, self.DOT_COLOR, tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
         self.write_debug_info()

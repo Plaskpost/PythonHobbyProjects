@@ -67,7 +67,7 @@ class Explorer:
                 self.pos[x_or_y] -= v[x_or_y]  # Move back.
             elif across_edge[i]:
                 self.transfer_tile(maze, index_to_tile_ahead, self.directions[i])
-                #maze.update_visibility(self.pos_tile)  # 2D Strategy only!
+
 
     def rotate(self, left, amount):
         if left:
@@ -128,6 +128,8 @@ class Explorer:
                 maze.place_wall_or_opening(tile, global_border_hit)
             if maze.wall_map[tile][global_border_hit] == -1:  # Break loop when wall is hit.
                 break
+            if distance > 50 * self.tile_size:
+                raise RuntimeError("Error: Distance", distance, " too large! Something must have gone wrong.")
 
             # Update pos_tile for next iteration
             tile = maze.adjacency_map[tile][global_border_hit]
