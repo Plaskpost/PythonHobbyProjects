@@ -16,12 +16,12 @@ class DynamicMaze:
         HyperbolicGrid.register_tile(tile, self.adjacency_map)
         self.wall_map[tile] = [0, 0, 0, 0]
 
-    def update_visibility(self, tile):
+    def update_visibility(self, tile):  # TODO: Den här ska bort och ersättas med rayuppdatering
         self.visible_tiles = set()
         self.update_visibility_recursive(tile, "")
 
     # Recursive. Should update self.visible_tiles following a given position.
-    def update_visibility_recursive(self, tile, move_sequence):  # (string, string, int)
+    def update_visibility_recursive(self, tile, move_sequence):
         if tile in self.visible_tiles:
             return
 
@@ -78,7 +78,6 @@ class DynamicMaze:
 # ----------- Just some help functions ----------------
 
 def check_visibility(move_sequence):
-    print(move_sequence, ": ", len(move_sequence))
     if len(move_sequence) < 4:
         return True
     tail = move_sequence[-3:]

@@ -1,4 +1,5 @@
 import math
+import time
 
 import pygame
 import numpy as np
@@ -8,7 +9,7 @@ from abc import ABC, abstractmethod
 class Rendering(ABC):
 
     def __init__(self, caption, dynamic_maze, explorer):
-        self.SCREEN_SIZE = np.array([1200, 800])
+        self.SCREEN_SIZE = np.array([800, 600])
         self.TEXT_SIZE = 12
         pygame.init()
         self.screen = pygame.display.set_mode(tuple(self.SCREEN_SIZE))
@@ -22,18 +23,22 @@ class Rendering(ABC):
         pass
 
     def write_debug_info(self):
+        directions = ["DOWN", "RIGHT", "UP", "LEFT"]
         walkable_directions = ""
+        walkable_neighbors = ""
         for i in range(4):
             if self.maze.wall_map[self.explorer.pos_tile][i] == 1:
-                walkable_directions += self.explorer.directions[i] + "  "
+                walkable_directions += directions[i] + "  "
+                walkable_neighbors += self.maze.adjacency_map[self.explorer.pos_tile][i] + "  "
         convert_to_string = np.vectorize(lambda x: "{:.{}f}".format(x, 1))
         string_pos = convert_to_string(self.explorer.pos)
         lines = ["Active tile: " + self.explorer.pos_tile,
                  "Walkable global directions: " + walkable_directions,
+                 "Neighbors at those directions: " + walkable_neighbors,
                  "Position coordinates: (" + string_pos[0] + ", " + string_pos[1] + ")",
-                 "Last local step: " + self.explorer.opposite_of(self.explorer.local_direction_to_previous)]
+                 "Last local step: " + directions[self.explorer.opposite_of(self.explorer.local_index_to_previous)]]
         for i in range(len(lines)):
-            text = self.font.render(lines[i], True, (255, 255, 255))
+            text = self.font.render(lines[i], True, (150, 150, 255))
             self.screen.blit(text, (10, 10 + i*(self.TEXT_SIZE+10)))
 
 
@@ -41,6 +46,7 @@ class Rendering2D(Rendering):
 
     def __init__(self, dynamic_maze, explorer):
         super().__init__("Overview", dynamic_maze, explorer)
+        self.camera_span = (90, 60)  # Degrees
         self.SQUARE_SIZE = self.explorer.tile_size
         self.WALL_THICKNESS = 5  # *2
         self.SQUARE_COLOR = (255, 255, 255)
@@ -52,20 +58,24 @@ class Rendering2D(Rendering):
         self.DOT_SIZE = self.explorer.player_radius
         self.screen.fill(self.BG_COLOR)
 
-        self.initial_rotation = explorer.rotation
+        self.initial_rotation = 90  # Not following changes in this at other locations then
+        self.drawn_tiles = set()
         self.update()
 
     def update(self):
         self.screen.fill(self.BG_COLOR)
         self.maze.update_visibility(self.explorer.pos_tile)
+        self.drawn_tiles = set()
         self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
+        self.draw_view_field()
         pygame.draw.circle(self.screen, self.DOT_COLOR, tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
         self.write_debug_info()
         pygame.display.flip()
         pygame.display.update()
+        time.sleep(0.01)
 
     def update_recursive(self, tile, prev_tile, screen_position):
-        if tile not in self.maze.visible_tiles:
+        if tile not in self.maze.visible_tiles or tile in self.drawn_tiles:
             return
 
         # Define some useful parameters
@@ -85,6 +95,8 @@ class Rendering2D(Rendering):
         text = self.font.render(tile, True, self.TEXT_COLOR)
         self.screen.blit(text, (square_center[0], square_center[1]))
 
+        self.drawn_tiles.add(tile)
+
         shifts = np.array([[0, 1], [1, 0], [0, -1], [-1, 0]])
         for i in range(4):
             if self.maze.wall_map[tile][i] == -1:  # If wall draw wall.
@@ -92,7 +104,7 @@ class Rendering2D(Rendering):
                 wall_x, wall_y, wall_w, wall_h = self.where_wall(i, square_center)
                 # pygame.draw.rect(self.screen, self.WALL_COLOR, ((wall_x, wall_y), (wall_w, wall_h)))
             else:  # Else call drawing function for surrounding tiles.
-                global_index = self.explorer.global_index_to(i)
+                global_index = self.explorer.global_index_to(i)  # This will be false occasionally since explorer.global_index_to has the player's orientation as reference.
                 neighbor = self.maze.adjacency_map[tile][global_index]
                 if neighbor == prev_tile:
                     continue
@@ -132,3 +144,14 @@ class Rendering2D(Rendering):
         rot_rect = rot_image.get_rect(center=center)
         self.screen.blit(rot_image, rot_rect)
 
+    def draw_view_field(self):
+        dir_left = self.explorer.rotation + self.camera_span[0]/2
+        dir_right = self.explorer.rotation - self.camera_span[0]/2
+        self.draw_overview_line(dir_left, self.explorer.compute_distance(self.maze, dir_left, True))
+        self.draw_overview_line(dir_right, self.explorer.compute_distance(self.maze, dir_right, True))
+
+    def draw_overview_line(self, direction, distance):
+        center = (self.SCREEN_SIZE[0] // 2, self.SCREEN_SIZE[1] // 2)
+        end_point = (center[0] + distance * math.cos(math.radians(direction - self.explorer.rotation + 90)),
+                     center[1] + distance * math.sin(math.radians(direction - self.explorer.rotation - 90)))
+        pygame.draw.line(self.screen, (100, 100, 255), center, end_point, 1)

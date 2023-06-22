@@ -1,10 +1,13 @@
+import time
+
 import pygame
 import numpy as np
+import multiprocessing
 
 from DynamicMaze import DynamicMaze
 from Rendering2D import Rendering2D
 from Rendering3D import Rendering3D
-from Explorer import Explorer
+from Explorer import Player
 
 
 # Constants
@@ -22,17 +25,16 @@ seed = 44
 fixed_seed = True
 
 
-if __name__ == '__main__':
-
+def run_game():
     if fixed_seed:
         np.random.seed(seed)
-    explorer = Explorer(movement_speed, rotation_speed, tile_size, player_radius)
+    explorer = Player(movement_speed, rotation_speed, tile_size, player_radius)
     maze = DynamicMaze(explorer.pos_tile, average_walls_per_tile)
     renderer = Rendering3D(maze, explorer)
-    if isinstance(renderer, Rendering2D):
-        maze.update_visibility(explorer.pos_tile)
     renderer.update()
 
+    flip = False
+    printt = False  # I hate this strategy
     running = True
     while running:
         for event in pygame.event.get():
@@ -42,23 +44,51 @@ if __name__ == '__main__':
         # I think this section can look better.
         keys = pygame.key.get_pressed()
         pressed = False
-        arrow_keys = [pygame.K_DOWN, pygame.K_RIGHT, pygame.K_UP,
-                      pygame.K_LEFT]  # This way i should match the direction.
 
-        if keys[pygame.K_UP]:
-            explorer.move(forward=True, maze=maze)
+        if keys[pygame.K_UP] or keys[pygame.K_KP8]:
+            explorer.move(maze=maze, flbr=0)
             pressed = True
-        if keys[pygame.K_DOWN]:
-            explorer.move(forward=False, maze=maze)
+        if keys[pygame.K_DOWN] or keys[pygame.K_KP5]:
+            explorer.move(maze=maze, flbr=2)
             pressed = True
-        if keys[pygame.K_LEFT]:
+        if keys[pygame.K_KP1]:
+            explorer.move(maze=maze, flbr=1)
+            pressed = True
+        if keys[pygame.K_KP3]:
+            explorer.move(maze=maze, flbr=3)
+            pressed = True
+        if keys[pygame.K_LEFT] or keys[pygame.K_KP4]:
             explorer.rotate(left=True, amount=rotation_speed)
             pressed = True
-        if keys[pygame.K_RIGHT]:
+        if keys[pygame.K_RIGHT] or keys[pygame.K_KP6]:
             explorer.rotate(left=False, amount=rotation_speed)
             pressed = True
+
+        # Switch visualizing mode with 'keypad 0'
+        if keys[pygame.K_KP0]:
+            flip = True
+        elif flip and not keys[pygame.K_KP0]:
+            if isinstance(renderer, Rendering3D):
+                renderer = Rendering2D(maze, explorer)
+            else:
+                renderer = Rendering3D(maze, explorer)
+            pressed = True
+            flip = False
+
+        # Print the whole adjacency_list with 'p'
+        if keys[pygame.K_p]:
+            printt = True
+        elif printt and not keys[pygame.K_p]:
+            print("Full adjacency map:")
+            for tile, adjacents in maze.adjacency_map.items():
+                print(tile, ":", adjacents)
+            printt = False
 
         if pressed:
             renderer.update()
 
     pygame.quit()
+
+if __name__ == '__main__':
+    run_game()
+

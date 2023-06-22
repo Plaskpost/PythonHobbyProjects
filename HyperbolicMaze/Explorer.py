@@ -3,55 +3,66 @@ import math
 
 
 class Explorer:
+    DOWN = 0
+    RIGHT = 1
+    UP = 2
+    LEFT = 3
 
-    def __init__(self, movement_speed, rotation_speed, tile_size, player_radius):
-        # Constants
-        self.movement_speed = movement_speed
-        self.rotation_speed = rotation_speed
+    x = 0
+    y = 1
+
+    def __init__(self, tile_size, pos, pos_tile, global_prev, local_prev):
+        self.pos = pos
+        self.pos_tile = pos_tile
         self.tile_size = tile_size
-        self.player_radius = player_radius
-        self.directions = ["DOWN", "RIGHT", "UP", "LEFT"]
-
-        # Variables
-        self.pos = np.array([tile_size / 2.0, tile_size / 2.0])
-        self.pos_tile = ""
-        self.index_to_previous_tile = 0  # Pointing to 'D' initially.
-        self.rotation = 90  # Initially UP.
-        self.local_direction_to_previous = "DOWN"
-
-    def opposite_of(self, direction):
-        return self.directions[(self.directions.index(direction) + 2) % 4]
+        self.global_index_to_previous_tile = global_prev
+        self.local_index_to_previous = local_prev
 
     def global_index_to(self, local_index_to_next_tile):
-        local_index_to_previous_tile = self.directions.index(self.local_direction_to_previous)
         # "The amount of clockwise steps from direction_to_previous to direction_to_next is added to index_to_last."
-        return (((local_index_to_next_tile - local_index_to_previous_tile) % 4) + self.index_to_previous_tile) % 4
+        return (((local_index_to_next_tile - self.local_index_to_previous) % 4) + self.global_index_to_previous_tile) % 4
 
-    def transfer_tile(self, maze, index_to_new, direction):
+    def transfer_tile(self, maze, global_index_to_new, local_index_to_new):
         # Change active tile
-        new_tile = maze.adjacency_map[self.pos_tile][index_to_new]
-        self.index_to_previous_tile = maze.adjacency_map[new_tile].index(self.pos_tile)
+        new_tile = maze.adjacency_map[self.pos_tile][global_index_to_new]
+        self.global_index_to_previous_tile = maze.adjacency_map[new_tile].index(self.pos_tile)
         self.pos_tile = new_tile
-        self.local_direction_to_previous = self.opposite_of(direction)
+        self.local_index_to_previous = self.opposite_of(local_index_to_new)
 
         # Change local coordinates
-        [x, y] = self.pos
-        if direction == "DOWN":
-            y += self.tile_size
-        elif direction == "RIGHT":
-            x -= self.tile_size
-        elif direction == "UP":
-            y -= self.tile_size
-        elif direction == "LEFT":
-            x += self.tile_size
+        if local_index_to_new == self.DOWN:
+            self.pos[self.y] += self.tile_size
+        elif local_index_to_new == self.RIGHT:
+            self.pos[self.x] -= self.tile_size
+        elif local_index_to_new == self.UP:
+            self.pos[self.y] -= self.tile_size
+        elif local_index_to_new == self.LEFT:
+            self.pos[self.x] += self.tile_size
         else:
             raise ValueError("Invalid direction!")
-        self.pos = np.array([x, y])
 
-    def move(self, maze, forward):
-        heading = 1 if forward else -1
-        v = heading * self.movement_speed * np.array([math.cos(math.radians(self.rotation)),
+    def opposite_of(self, direction):
+        return (direction + 2) % 4
+
+
+class Player(Explorer):
+
+    def __init__(self, movement_speed, rotation_speed, tile_size, player_radius):
+        super().__init__(pos=np.array([tile_size / 2.0, tile_size / 2.0]), pos_tile="",
+                         tile_size=tile_size, global_prev=0, local_prev=Explorer.DOWN)
+
+        self.movement_speed = movement_speed
+        self.rotation_speed = rotation_speed
+        self.player_radius = player_radius
+
+        self.rotation = 90  # Initially UP.
+
+    def move(self, maze, flbr):
+        rotation_matrix = np.array([[0, -1], [1, 0]])
+        rotation_matrix = np.linalg.matrix_power(rotation_matrix, flbr)
+        v = self.movement_speed * np.array([math.cos(math.radians(self.rotation)),
                                                       math.sin(math.radians(self.rotation))])
+        v = np.dot(rotation_matrix, v)
         self.pos += v
         near_edge = [(self.pos[1] < self.player_radius and v[1] < 0),
                      (self.pos[0] >= self.tile_size - self.player_radius and v[0] > 0),
@@ -66,8 +77,7 @@ class Explorer:
             if near_edge[i] and wall_ahead:
                 self.pos[x_or_y] -= v[x_or_y]  # Move back.
             elif across_edge[i]:
-                self.transfer_tile(maze, index_to_tile_ahead, self.directions[i])
-
+                self.transfer_tile(maze, index_to_tile_ahead, i)
 
     def rotate(self, left, amount):
         if left:
@@ -79,19 +89,25 @@ class Explorer:
             if self.rotation < 0:
                 self.rotation += 360
 
-    def compute_distance(self, maze, direction):
+    def compute_distance(self, maze, direction, debugging_in_2D):
         # Indices
-        x = 0
-        y = 1
+        x = self.x
+        y = self.y
 
-        pos = self.pos.copy()
-        tile = self.pos_tile
+        ray = Explorer(self.tile_size, self.pos.copy(), self.pos_tile,
+                       self.global_index_to_previous_tile, self.local_index_to_previous)
         distance = 0
+        tile_path = []  # For debugging rays.
+
         while True:
             cos_r = math.cos(math.radians(direction))
             sin_r = math.sin(math.radians(direction))
-            dx = self.tile_size - pos[x] if cos_r > 0 else pos[x]
-            dy = self.tile_size - pos[y] if sin_r > 0 else pos[y]
+            dx = ray.tile_size - ray.pos[x] if cos_r > 0 else ray.pos[x]
+            dy = self.tile_size - ray.pos[y] if sin_r > 0 else ray.pos[y]
+
+            if debugging_in_2D:
+                tile_path.append(ray.pos_tile)
+                maze.visible_tiles.add(ray.pos_tile)
 
             if cos_r == 0.0:
                 dimension_hit = y
@@ -109,29 +125,29 @@ class Explorer:
             if dimension_hit == x:
                 if cos_r > 0:
                     local_border_hit = 1  # RIGHT
-                    pos[x] = 0
+                    ray.pos[x] = self.tile_size
                 else:
                     local_border_hit = 3  # LEFT
-                    pos[x] = self.tile_size
-                pos[y] += d*sin_r
+                    ray.pos[x] = 0
+                ray.pos[y] += d*sin_r
             else:
                 if sin_r > 0:
                     local_border_hit = 2  # UP
-                    pos[y] = 0
+                    ray.pos[y] = self.tile_size
                 else:
                     local_border_hit = 0  # DOWN
-                    pos[y] = self.tile_size
-                pos[x] += d*cos_r
+                    ray.pos[y] = 0
+                ray.pos[x] += d*cos_r
 
-            global_border_hit = self.global_index_to(local_border_hit)
-            if maze.wall_map[tile][global_border_hit] == 0:  # Update maze when a 0 is in view
-                maze.place_wall_or_opening(tile, global_border_hit)
-            if maze.wall_map[tile][global_border_hit] == -1:  # Break loop when wall is hit.
+            global_border_hit = ray.global_index_to(local_border_hit)
+            if maze.wall_map[ray.pos_tile][global_border_hit] == 0:  # Update maze when a 0 is in view
+                maze.place_wall_or_opening(ray.pos_tile, global_border_hit)
+            if maze.wall_map[ray.pos_tile][global_border_hit] == -1:  # Break loop when wall is hit.
                 break
-            if distance > 50 * self.tile_size:
+            if distance > 100 * self.tile_size:
                 raise RuntimeError("Error: Distance", distance, " too large! Something must have gone wrong.")
 
             # Update pos_tile for next iteration
-            tile = maze.adjacency_map[tile][global_border_hit]
+            ray.transfer_tile(maze=maze, global_index_to_new=global_border_hit, local_index_to_new=local_border_hit)
 
         return distance
