@@ -14,6 +14,7 @@ class Rendering3D(Rendering):
         self.camera_span = (90, 60)  # Degrees
         self.vertical_scale = 50000
         self.edge_line_thickness = 2
+        self.wall_thickness = 5  # *2
         self.wall_color = (255, 255, 255)
         self.edge_color = (0, 0, 0)
         self.floor_color = (100, 100, 100)

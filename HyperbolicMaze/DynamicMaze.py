@@ -52,6 +52,11 @@ class DynamicMaze:
             if self.wall_map[tile][i] == 0:
                 self.place_wall_or_opening(tile, i)
 
+    def check_wall_with_placement(self, tile, global_index):
+        if self.wall_map[tile][global_index] == 0:
+            self.place_wall_or_opening(tile, global_index)
+        return self.wall_map[tile][global_index] == -1
+
     def place_wall_or_opening(self, tile, global_index):
         # Line needed here for the Rendering3D strategy.
         if tile not in self.adjacency_map:
