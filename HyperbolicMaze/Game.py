@@ -29,7 +29,7 @@ fixed_seed = True
 def run_game():
     if fixed_seed:
         np.random.seed(seed)
-    explorer = Player(movement_speed, rotation_speed, tile_size, player_radius)
+    explorer = Player(movement_speed, rotation_speed, tile_size, wall_thickness, player_radius)
     maze = DynamicMaze(explorer.pos_tile, average_walls_per_tile)
     renderer = Rendering3D(maze, explorer)
     renderer.update()

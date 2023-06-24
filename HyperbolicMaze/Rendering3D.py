@@ -11,9 +11,8 @@ class Rendering3D(Rendering):
 
     def __init__(self, dynamic_maze, explorer):
         super().__init__("First person view", dynamic_maze, explorer)
-        self.camera_span = (90, 60)  # Degrees
         self.vertical_scale = 50000
-        self.edge_line_thickness = 2
+        self.edge_line_thickness = 1
         self.wall_thickness = 5  # *2
         self.wall_color = (255, 255, 255)
         self.edge_color = (0, 0, 0)
@@ -21,7 +20,7 @@ class Rendering3D(Rendering):
         self.background_color = (0, 0, 0)
 
         self.camera_y_angle = 0
-        self.camera_shift = 0*self.camera_y_angle  # TODO: To be continued..
+        self.camera_shift = 0*self.camera_y_angle  # To be continued..
 
     def update(self):
         self.draw_background()
@@ -64,7 +63,7 @@ class Rendering3D(Rendering):
         pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
 
     def get_vertical_points(self, column, distance):
-        line_length = np.round(self.vertical_scale/distance).astype(int)
+        line_length = np.round(self.vertical_scale/max(distance, 0.001)).astype(int)
         start = self.camera_shift + (self.SCREEN_SIZE[1] - line_length) // 2
         end = self.camera_shift + (self.SCREEN_SIZE[1] + line_length) // 2
 

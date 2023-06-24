@@ -11,6 +11,7 @@ class Rendering(ABC):
     def __init__(self, caption, dynamic_maze, explorer):
         self.SCREEN_SIZE = np.array([800, 600])
         self.TEXT_SIZE = 12
+        self.camera_span = (60, 60)  # Degrees
         pygame.init()
         self.screen = pygame.display.set_mode(tuple(self.SCREEN_SIZE))
         self.font = pygame.font.SysFont('arial', self.TEXT_SIZE)
@@ -46,7 +47,7 @@ class Rendering2D(Rendering):
 
     def __init__(self, dynamic_maze, explorer):
         super().__init__("Overview", dynamic_maze, explorer)
-        self.camera_span = (90, 60)  # Degrees
+        self.NUM_RAYS = 2
         self.SQUARE_SIZE = self.explorer.tile_size
         self.WALL_THICKNESS = 5  # *2
         self.SQUARE_COLOR = (255, 255, 255)
@@ -64,9 +65,9 @@ class Rendering2D(Rendering):
 
     def update(self):
         self.screen.fill(self.BG_COLOR)
-        self.maze.update_visibility(self.explorer.pos_tile)
+        # self.maze.update_visibility(self.explorer.pos_tile)
         self.drawn_tiles = set()
-        self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
+        # self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
         self.draw_view_field()
         pygame.draw.circle(self.screen, self.DOT_COLOR, tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
         self.write_debug_info()
@@ -144,11 +145,19 @@ class Rendering2D(Rendering):
         rot_rect = rot_image.get_rect(center=center)
         self.screen.blit(rot_image, rot_rect)
 
+    def draw_all_squares(self):
+        self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
+
     def draw_view_field(self):
-        dir_left = self.explorer.rotation + self.camera_span[0]/2
-        dir_right = self.explorer.rotation - self.camera_span[0]/2
-        self.draw_overview_line(dir_left, self.explorer.compute_distance(self.maze, dir_left, True))
-        self.draw_overview_line(dir_right, self.explorer.compute_distance(self.maze, dir_right, True))
+        left_limit = self.explorer.rotation + self.camera_span[0]/2
+        right_limit = self.explorer.rotation - self.camera_span[0]/2
+        ray_directions = np.linspace(left_limit, right_limit, self.NUM_RAYS)
+        ray_distances = np.empty_like(ray_directions)
+        for i in range(len(ray_directions)):
+            ray_distances[i] = self.explorer.compute_distance(self.maze, ray_directions[i], True)
+        self.draw_all_squares()
+        for i in range(len(ray_directions)):
+            self.draw_overview_line(ray_directions[i], ray_distances[i])
 
     def draw_overview_line(self, direction, distance):
         center = (self.SCREEN_SIZE[0] // 2, self.SCREEN_SIZE[1] // 2)

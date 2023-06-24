@@ -1,5 +1,12 @@
 import numpy as np
 
-mtrx = np.zeros((12, 8))
+a = np.array([0.9, 0.4])
+c = np.array([4, 2])
+b = np.minimum(a, 1-a)
 
-print(mtrx[2:5][3])
+print(b)
+
+result = np.argmin([a, 1-a], axis=0)
+
+print(result)
+print()

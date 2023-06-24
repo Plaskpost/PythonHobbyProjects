@@ -73,3 +73,10 @@ index_to_next = (((direction - local_direction_to_previous) % 4) + index_to_last
 
 Oneliner for local border index:
 [xy,
+
+Wall corner check with all other variables known:
+Inner confirmed: dim = x/0 -> local_border = 0,   dim = y/1 -> local_border = 3
+Outer confirmed: dim = x/0 -> local_border = 2,   dim = y/1 -> local_border = 1
+
+Rotation increase: y_top-under, x_bottom-under, y_bottom-over, x_top-over
+Rotation decrease: y_top-over, x_bottom-over, y_bottom-under, x_top-under
