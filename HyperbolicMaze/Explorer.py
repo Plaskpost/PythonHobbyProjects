@@ -180,7 +180,7 @@ class Player(Explorer):
             if distance > 100 * self.tile_size:
                 raise RuntimeError("Error: Distance", distance, " too large! Something must have gone wrong.")
 
-            # Update ray object for next iteration
+            # Update ray object for next iteration.
             ray.transfer_tile(maze=maze, global_index_to_new=global_border_hit, local_index_to_new=local_border_hit)
 
         return distance
