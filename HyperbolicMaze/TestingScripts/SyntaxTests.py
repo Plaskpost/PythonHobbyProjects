@@ -1,12 +1,8 @@
 import numpy as np
 
-a = np.array([0.9, 0.4])
-c = np.array([4, 2])
-b = np.minimum(a, 1-a)
+a = np.array([[1, 2], [3, 4]])
+b = np.array([10, 10])
+a[1] = a[0]
+a[0][0] = 0
 
-print(b)
-
-result = np.argmin([a, 1-a], axis=0)
-
-print(result)
-print()
+print(a)
