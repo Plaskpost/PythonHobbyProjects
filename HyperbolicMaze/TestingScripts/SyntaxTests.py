@@ -1,11 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
-a = np.array([1, 2])
-[x, y] = a
+a = np.array([0.9, 0.4])
+c = np.array([4, 2])
+b = np.minimum(a, 1-a)
 
-values = np.random.binomial(5, 0.5, 1000)
+print(b)
 
-gauss_values = np.round(0.5 * np.random.randn(200) + 2.2).astype(int)
+result = np.argmin([a, 1-a], axis=0)
 
-print(gauss_values)
+print(result)
+print()
