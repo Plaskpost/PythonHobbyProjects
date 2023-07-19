@@ -27,7 +27,7 @@ class Rendering3D(Rendering):
         self.camera_y_angle = 0
         self.camera_shift = 0*self.camera_y_angle  # To be continued..
 
-        self.inner_corners, self.outer_corners = self.list_those_corners() # [local_side_index][right=0, left=1]
+        self.inner_corners, self.outer_corners = self.list_those_corners()  # [local_side_index][right=0, left=1]
 
     def update(self):
         self.draw_background()
@@ -46,19 +46,22 @@ class Rendering3D(Rendering):
     def draw_walls(self):
         left = self.explorer.rotation - self.camera_span[0] / 2.0
         right = self.explorer.rotation + self.camera_span[0] / 2.0
-        wall_segment = np.array([[-1, -1], [-1, -1]])  # [[x_left, y_left], [x_right, y_right]]
-        self.draw_walls_recursive(self.explorer, left, right, wall_segment, np.array([0, 0]))
+        wall_segment = np.array([[-1, -1], [-1, -1]])  # [[r_left, phi_left], [r_right, phi_right]]
+        self.draw_walls_recursive(self.explorer, left, right, wall_segment, np.array([[0], [0]]))
 
-    def draw_walls_recursive(self, probe, left_angle_limit, right_angle_limit, wall_segment, journey):  # TODO: Journey is journey[:, np.newaxis] as standard.
+    def draw_walls_recursive(self, probe, left_angle_limit, right_angle_limit, wall_segment, journey):
         prev = probe.local_index_to_previous
 
         # Start by the first small corner segment to the right.
         first_right_corner = self.to_polar(self.inner_corners[0+prev] + journey)
         if first_right_corner[self.phi] > right_angle_limit:  # If first small segment visible
             if self.extend(wall_segment, first_right_corner, left_angle_limit):
-                return
+                return  # No need to keep traversing if we lose visibility here already.
 
-        # A cut condition here? # TODO: It's very well time to have a good system for when to call cut()
+        # A cut condition here?
+        # No, I want all split_cut calls to be done in extend(). That means extend() need to check limits both ahead and behind.
+        # NOTE: Before and after the for loop are the only situations where the distance can make a jump.
+        # This should be irrelevant. If I'm right we only need the XOR check for join_cut() calls.
 
         # Now the tree walls from right to left
         for i in range(1, 4):
@@ -69,18 +72,18 @@ class Rendering3D(Rendering):
             # Find the far (ahead in rotation) inner corner and compute its angle.
             far_corner = self.to_polar(self.inner_corners[local_index] + journey)
 
-            if wall_here:
+            if wall_here:  # TODO: Add the XOR check and call join_cut() at a suitable step in the code.
                 if self.extend(wall_segment, far_corner, left_angle_limit):
-                    return
+                    break
                 # Note that if we find an actual inner corner, we need to call the cut function.
-            else: # If we have an opening
+            else:  # If we have an opening
                 outer_left = self.to_polar(self.outer_corners[local_index][self.right] + journey)
-                new_left = min(far_corner[self.phi], outer_left[self.phi], left_angle_limit)
+                new_left_angle = min(far_corner[self.phi], outer_left[self.phi], left_angle_limit)
                 inner_right = self.to_polar(self.inner_corners[(local_index-1)%4] + journey)
                 outer_right = self.to_polar(self.outer_corners[local_index][self.right] + journey)
-                new_right = max(inner_right, outer_right, right_angle_limit)
+                new_right_angle = max(inner_right[self.phi], outer_right[self.phi], right_angle_limit)
 
-            #       If corner segment to the right is visible: (should gra this information from the min/max above)
+            #       If corner segment to the right is visible: (should grab this information from the min/max above)
             #           If previous was a wall:
             #               Extend the saved wall_segment to include it.
             #           Else: If previous was an opening,
@@ -96,26 +99,36 @@ class Rendering3D(Rendering):
             #       Draw the stored wall segment and reset it
             #       Break the loop.
 
-
-
-        # After for loop check the leftmost corner segment like we did with the right before the loop.
-
-        pass
-
-    def cut(self, wall_segment):  # TODO: This is completely wrong. wall_segment is in polar coordinates first of all.
-        pygame.draw.polygon(self.screen, self.edge_color, wall_segment, 3)
-        pygame.draw.polygon(self.screen, self.wall_color, wall_segment)
-        wall_segment[0] = wall_segment[1]
+        last_left_corner = self.to_polar(self.inner_corners[(-1 + prev) % 4] + journey)
+        if last_left_corner[self.phi] > right_angle_limit:  # TODO: This small segment should adjust left_limit for the for loop.
+            if self.extend(wall_segment, first_right_corner, left_angle_limit):
+                return
 
     # Assumes straight wall segment without corners between itself and the new point.
+    # Returns True if we met the left limit.
     def extend(self, wall_segment, new_point, left_limit):
-        if self.compute_angle(new_point) > left_limit:  # TODO: new_point is now in polar!
+        # TODO: Check both left_limit and right limit and call split_cut() accordingly.
+        if new_point[self.phi] > left_limit:
             wall_segment[0] = np.array([-1, -1])  # TODO: Figure out a way to compute the new coordinates.
-            self.cut(wall_segment)
             return True
         else:
             wall_segment[0] = new_point
             return False
+
+    def join_cut(self, wall_segment):
+        self.draw_wall_segment(wall_segment)
+        wall_segment[0] = wall_segment[1]
+
+    def split_cut(self, wall_segment, front_point):
+        self.draw_wall_segment(wall_segment)
+        wall_segment[0] = front_point
+
+    def draw_wall_segment(self, wall_segment):
+        polygon_points = [(0, 0), (0, 0), (0, 0), (0, 0)]
+        polygon_points[0], polygon_points[1] = self.get_vertical_points(self.angle_to_column, wall_segment[0][self.r])
+        polygon_points[3], polygon_points[2] = self.get_vertical_points(self.angle_to_column, wall_segment[1][self.r])
+        pygame.draw.polygon(self.screen, self.edge_color, polygon_points, 3)
+        pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
 
     def to_polar(self, points):  # [r, phi]
         polar = np.empty_like(points)
