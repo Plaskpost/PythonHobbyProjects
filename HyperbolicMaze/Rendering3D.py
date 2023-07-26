@@ -29,6 +29,8 @@ class Rendering3D(Rendering):
         self.inner_corners, self.outer_corners = self.list_those_corners()  # [local_side_index][right=0, left=1]
         self.journey_steps = config.tile_size * np.array([[0, -1], [1, 0], [0, 1], [-1, 0]])
 
+        self.wall_cut = True
+
     def update(self):
         self.draw_background()
         self.draw_walls()
@@ -82,7 +84,7 @@ class Rendering3D(Rendering):
                 new_left_angle = left_options[sorted_left_indices[0]]
 
                 if sorted_right_indices[0] == 1:  # If outer_right is inmost this segment is visible.
-                    if wall_segment[1] == -1:
+                    if self.wall_cut:
                         wall_segment[1] = right_options[sorted_right_indices[1]]  # TODO: I hate to say it but this only gives phi.
                     self.extend(wall_segment, outer_right, left_angle_limit, right_angle_limit)
 
@@ -93,22 +95,25 @@ class Rendering3D(Rendering):
                                           wall_segment=wall_segment, journey=(journey+self.journey_steps[local_index]))
 
                 if sorted_left_indices[2] == 0:  # If inner_left is outermost this segment is visible.
-                    if wall_segment[1] == -1:
+                    if self.wall_cut:
                         wall_segment[1] = left_options[sorted_left_indices[1]]
                     self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit)
 
     # Assumes straight wall segment without corners between itself and the new point.
     # Returns True if we met the left limit.
-    def extend(self, wall_segment, new_point, left_limit, right_limit):
-        # TODO: Check both left_limit and right limit and call split_cut() accordingly.
+    def extend(self, wall_segment, new_point, left_limit, right_limit)
         if right_limit > new_point[self.phi]:
+            wall_segment[0] = new_point
             self.split_cut(wall_segment)
             return False
         elif new_point[self.phi] > left_limit:
-            wall_segment[0] = np.array([-1, -1])  # TODO: Figure out a way to compute the new coordinates.
+            wall_segment[0] = self.find_on_line(wall_segment[0], new_point, left_limit)  # TODO: Figure out a way to compute the new coordinates.
             self.split_cut(wall_segment)
             return True  # Only if left limit exceeded.
-        else:
+        else:  # If new point within the span.
+            if self.wall_cut:
+                wall_segment[1] = self.find_on_line(wall_segment[0], new_point, right_limit)
+                self.wall_cut = False
             wall_segment[0] = new_point
             return False
 
@@ -119,6 +124,7 @@ class Rendering3D(Rendering):
     def split_cut(self, wall_segment):
         self.draw_wall_segment(wall_segment)
         wall_segment[1] = -1
+        self.wall_cut = True
 
     def draw_wall_segment(self, wall_segment):
         polygon_points = [(0, 0), (0, 0), (0, 0), (0, 0)]
@@ -135,6 +141,9 @@ class Rendering3D(Rendering):
         polar[1] = np.degrees(np.arctan2(point[1] - self.explorer.pos[1], point[0] - self.explorer.pos[0]))
         return polar
 
+    def find_on_line(self, a, b, phi_c):
+
+
     def angle_to_column(self, angle):
         left_edge = self.explorer.rotation + self.camera_span//2
         right_edge = self.explorer.rotation - self.camera_span//2
@@ -149,6 +158,9 @@ class Rendering3D(Rendering):
         inner = np.array([[s - w, w], [s - w, s - w], [w, s - w], [w, w]])
         outer = np.array([[[w, 0], [s - w, 0]], [[s, w], [s, s - w]], [[s - w, s], [w, s]], [[0, s - w], [0, w]]])
         return inner, outer
+
+
+# ------------------ OLD FUNCTIONS ----------------------
 
     def old_draw_walls(self):
         screen_width = self.SCREEN_SIZE[0]
