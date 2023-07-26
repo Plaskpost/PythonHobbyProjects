@@ -58,11 +58,6 @@ class Rendering3D(Rendering):
             if self.extend(wall_segment, first_right_corner, left_angle_limit):
                 return  # No need to keep traversing if we lose visibility here already.
 
-        # A cut condition here?
-        # No, I want all split_cut calls to be done in extend(). That means extend() need to check limits both ahead and behind.
-        # NOTE: Before and after the for loop are the only situations where the distance can make a jump.
-        # This should be irrelevant. If I'm right we only need the XOR check for join_cut() calls.
-
         # Now the tree walls from right to left
         for i in range(1, 4):
             local_index = (i + prev) % 4
@@ -72,11 +67,16 @@ class Rendering3D(Rendering):
             # Find the far (ahead in rotation) inner corner and compute its angle.
             far_corner = self.to_polar(self.inner_corners[local_index] + journey)
 
-            if wall_here:  # TODO: Add the XOR check and call join_cut() at a suitable step in the code.
+            # Make a cut in the corner behind if it is an inner or outer corner.
+            if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)):
+                self.join_cut(wall_segment)
+
+            # Extend wall if there is a wall here.
+            if wall_here:
                 if self.extend(wall_segment, far_corner, left_angle_limit):
-                    break
-                # Note that if we find an actual inner corner, we need to call the cut function.
+                    break  # Break the loop if we met the left angle limit.
             else:  # If we have an opening
+                # TODO: If we know we have an opening, maybe it's smart to cover the wall pieces in to the next tile as well, so we can take away the code outside the loop.
                 outer_left = self.to_polar(self.outer_corners[local_index][self.right] + journey)
                 new_left_angle = min(far_corner[self.phi], outer_left[self.phi], left_angle_limit)
                 inner_right = self.to_polar(self.inner_corners[(local_index-1)%4] + journey)
@@ -106,9 +106,11 @@ class Rendering3D(Rendering):
 
     # Assumes straight wall segment without corners between itself and the new point.
     # Returns True if we met the left limit.
-    def extend(self, wall_segment, new_point, left_limit):
+    def extend(self, wall_segment, new_point, left_limit, right_limit):
         # TODO: Check both left_limit and right limit and call split_cut() accordingly.
-        if new_point[self.phi] > left_limit:
+        if right_limit > new_point[self.phi]:
+            return False  # False?
+        elif new_point[self.phi] > left_limit:
             wall_segment[0] = np.array([-1, -1])  # TODO: Figure out a way to compute the new coordinates.
             return True
         else:
