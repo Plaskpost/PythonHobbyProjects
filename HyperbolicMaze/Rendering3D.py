@@ -38,18 +38,18 @@ class Rendering3D(Rendering):
         pygame.display.flip()
 
     def draw_background(self):
-        screen_width = self.SCREEN_SIZE[0]
-        screen_height = self.SCREEN_SIZE[1]
+        screen_width = config.SCREEN_SIZE[0]
+        screen_height = config.SCREEN_SIZE[1]
         self.screen.fill(self.background_color)
         polygon_points = [(0, screen_height / 2 + self.camera_shift), (0, screen_height),
                           (screen_width, screen_height), (screen_width, screen_height / 2 + self.camera_shift)]
         pygame.draw.polygon(self.screen, self.floor_color, polygon_points)
 
     def draw_walls(self):
-        left = self.explorer.rotation - self.camera_span[0] / 2.0
-        right = self.explorer.rotation + self.camera_span[0] / 2.0
+        left_limit = self.explorer.rotation - config.camera_span[0] / 2.0
+        right_limit = self.explorer.rotation + config.camera_span[0] / 2.0
         wall_segment = np.array([[-1, -1], [-1, -1]])  # [[r_left, phi_left], [r_right, phi_right]]
-        self.draw_walls_recursive(self.explorer, left, right, wall_segment, np.array([0, 0]))
+        self.draw_walls_recursive(self.explorer, left_limit, right_limit, wall_segment, np.array([0, 0]))
 
     def draw_walls_recursive(self, probe, left_angle_limit, right_angle_limit, wall_segment, journey):
         prev = probe.local_index_to_previous
@@ -65,7 +65,7 @@ class Rendering3D(Rendering):
 
             # Make a cut in the corner behind if it is an inner or outer corner.
             if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)):
-                self.join_cut(wall_segment)
+                self.join_cut(wall_segment)  # TODO: This triggers even if the corner in question is outside the visible range.
 
             # Extend wall if there is a wall here.
             if wall_here:
@@ -81,11 +81,9 @@ class Rendering3D(Rendering):
                 outer_left = self.to_polar(self.outer_corners[local_index][self.left] + extra_step + journey)
                 left_options = [inner_left[self.phi], outer_left[self.phi], left_angle_limit]
                 sorted_left_indices = np.argsort(left_options)
-                new_left_angle = left_options[sorted_left_indices[0]]
 
                 if sorted_right_indices[0] == 1:  # If outer_right is inmost this segment is visible.
-                    if self.wall_cut:
-                        wall_segment[1] = right_options[sorted_right_indices[1]]  # TODO: I hate to say it but this only gives phi.
+                    # I gambled on removing a wall_cut check here.
                     self.extend(wall_segment, outer_right, left_angle_limit, right_angle_limit)
 
                 # Recursion call.
@@ -94,20 +92,21 @@ class Rendering3D(Rendering):
                                           left_angle_limit=left_options[sorted_left_indices[0]],
                                           wall_segment=wall_segment, journey=(journey+self.journey_steps[local_index]))
 
-                if sorted_left_indices[2] == 0:  # If inner_left is outermost this segment is visible.
+                if sorted_left_indices[2] == 0:  # If inner_left is outermost, this segment is visible.
                     if self.wall_cut:
-                        wall_segment[1] = left_options[sorted_left_indices[1]]
-                    self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit)
+                        wall_segment[1] = outer_left
+                        self.wall_cut = False
+                    self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit)  # Enough because extend will catch the left limit.
 
     # Assumes straight wall segment without corners between itself and the new point.
     # Returns True if we met the left limit.
-    def extend(self, wall_segment, new_point, left_limit, right_limit)
+    def extend(self, wall_segment, new_point, left_limit, right_limit):
         if right_limit > new_point[self.phi]:
             wall_segment[0] = new_point
             self.split_cut(wall_segment)
             return False
         elif new_point[self.phi] > left_limit:
-            wall_segment[0] = self.find_on_line(wall_segment[0], new_point, left_limit)  # TODO: Figure out a way to compute the new coordinates.
+            wall_segment[0] = self.find_on_line(wall_segment[0], new_point, left_limit)
             self.split_cut(wall_segment)
             return True  # Only if left limit exceeded.
         else:  # If new point within the span.
@@ -141,16 +140,22 @@ class Rendering3D(Rendering):
         polar[1] = np.degrees(np.arctan2(point[1] - self.explorer.pos[1], point[0] - self.explorer.pos[0]))
         return polar
 
-    def find_on_line(self, a, b, phi_c):
-
+    def find_on_line(self, point1, point2, angle3):
+        a = point1[self.r]
+        b = point2[self.r]
+        gamma = np.radians(abs((point1[self.phi] - point2[self.phi]) % 360))
+        gamma_bc = np.radians(abs((angle3 - point2[self.phi]) % 360))
+        c = math.sqrt(a ** 2 + b ** 2 - 2 * a * b * math.cos(gamma))
+        alpha = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
+        return math.sin(alpha) * b / math.sin(math.pi - alpha - gamma_bc)
 
     def angle_to_column(self, angle):
-        left_edge = self.explorer.rotation + self.camera_span//2
-        right_edge = self.explorer.rotation - self.camera_span//2
+        left_edge = self.explorer.rotation + config.camera_span[0]//2
+        right_edge = self.explorer.rotation - config.camera_span[0]//2
         if right_edge > angle or angle > left_edge:
             raise ValueError("Angle outside visible span!")
 
-        return (left_edge - angle) * self.SCREEN_SIZE[0] // self.camera_span
+        return (left_edge - angle) * config.SCREEN_SIZE[0] // config.camera_span[0]
 
     def list_those_corners(self):
         s = config.tile_size

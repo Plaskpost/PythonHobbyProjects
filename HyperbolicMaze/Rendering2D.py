@@ -1,20 +1,17 @@
 import math
 import time
-
 import pygame
 import numpy as np
+import config
 from abc import ABC, abstractmethod
 
 
 class Rendering(ABC):
 
     def __init__(self, caption, dynamic_maze, explorer):
-        self.SCREEN_SIZE = np.array([800, 600])
-        self.TEXT_SIZE = 12
-        self.camera_span = (60, 60)  # Degrees
         pygame.init()
-        self.screen = pygame.display.set_mode(tuple(self.SCREEN_SIZE))
-        self.font = pygame.font.SysFont('arial', self.TEXT_SIZE)
+        self.screen = pygame.display.set_mode(config.SCREEN_SIZE)
+        self.font = pygame.font.SysFont('arial', config.TEXT_SIZE)
         pygame.display.set_caption(caption)
         self.maze = dynamic_maze
         self.explorer = explorer
@@ -40,7 +37,7 @@ class Rendering(ABC):
                  "Last local step: " + directions[self.explorer.opposite_of(self.explorer.local_index_to_previous)]]
         for i in range(len(lines)):
             text = self.font.render(lines[i], True, (150, 150, 255))
-            self.screen.blit(text, (10, 10 + i*(self.TEXT_SIZE+10)))
+            self.screen.blit(text, (10, 10 + i*(config.TEXT_SIZE+10)))
 
 
 class Rendering2D(Rendering):
@@ -69,7 +66,7 @@ class Rendering2D(Rendering):
         self.drawn_tiles = set()
         # self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
         self.draw_view_field()
-        pygame.draw.circle(self.screen, self.DOT_COLOR, tuple(self.SCREEN_SIZE//2), self.DOT_SIZE)
+        pygame.draw.circle(self.screen, self.DOT_COLOR, tuple(config.SCREEN_SIZE//2), self.DOT_SIZE)
         self.write_debug_info()
         pygame.display.flip()
         pygame.display.update()
@@ -89,7 +86,7 @@ class Rendering2D(Rendering):
         # Draw the tile
         square_center = -flip_y*self.explorer.pos + screen_position * self.SQUARE_SIZE + flip_y*self.SQUARE_SIZE//2
         square_center = np.dot(rotation_matrix, square_center)
-        square_center = square_center + self.SCREEN_SIZE//2
+        square_center = square_center + config.SCREEN_SIZE//2
         self.draw_square(tuple(square_center), rotation_degrees)
 
         # Label the tile
@@ -149,8 +146,8 @@ class Rendering2D(Rendering):
         self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
 
     def draw_view_field(self):
-        left_limit = self.explorer.rotation + self.camera_span[0]/2
-        right_limit = self.explorer.rotation - self.camera_span[0]/2
+        left_limit = self.explorer.rotation + config.camera_span[0]/2
+        right_limit = self.explorer.rotation - config.camera_span[0]/2
         ray_directions = np.linspace(left_limit, right_limit, self.NUM_RAYS)
         ray_distances = np.empty_like(ray_directions)
         for i in range(len(ray_directions)):
@@ -160,7 +157,7 @@ class Rendering2D(Rendering):
             self.draw_overview_line(ray_directions[i], ray_distances[i])
 
     def draw_overview_line(self, direction, distance):
-        center = (self.SCREEN_SIZE[0] // 2, self.SCREEN_SIZE[1] // 2)
+        center = (config.SCREEN_SIZE[0] // 2, config.SCREEN_SIZE[1] // 2)
         end_point = (center[0] + distance * math.cos(math.radians(direction - self.explorer.rotation + 90)),
                      center[1] + distance * math.sin(math.radians(direction - self.explorer.rotation - 90)))
         pygame.draw.line(self.screen, (100, 100, 255), center, end_point, 1)
