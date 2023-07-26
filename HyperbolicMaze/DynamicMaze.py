@@ -1,14 +1,14 @@
 import numpy as np
 import HyperbolicGrid
+import config
 
 
 class DynamicMaze:
 
-    def __init__(self, pos, average_walls_per_tile):
+    def __init__(self, pos):
         self.adjacency_map = {}
         self.wall_map = {}  # 1: passable, -1: wall, 0: unexplored
         self.visible_tiles = set()  # Set of visible tiles
-        self.average_walls_per_tile = average_walls_per_tile
         self.register_tile(pos)
         self.make_walls(pos)
 
@@ -39,7 +39,7 @@ class DynamicMaze:
             HyperbolicGrid.register_tile(tile, self.adjacency_map)
 
         # I believe it can be done better than setting this every call.
-        num_walls = np.round(0.5 * np.random.randn() + self.average_walls_per_tile).astype(int)
+        num_walls = np.round(0.5 * np.random.randn() + config.average_walls_per_tile).astype(int)
         num_zeros = self.wall_map[tile].count(0)
         existing_walls = self.wall_map[tile].count(-1)
         prob = (num_walls - existing_walls) / num_zeros

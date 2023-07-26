@@ -1,8 +1,8 @@
 import math
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pygame.display
+import config
 
 from Rendering2D import Rendering
 from Explorer import Ray
@@ -18,7 +18,6 @@ class Rendering3D(Rendering):
         super().__init__("First person view", dynamic_maze, explorer)
         self.vertical_scale = 50000
         self.edge_line_thickness = 1
-        self.wall_thickness = self.explorer.wall_thickness  # *2
         self.wall_color = (255, 255, 255)
         self.edge_color = (0, 0, 0)
         self.floor_color = (100, 100, 100)
@@ -28,6 +27,7 @@ class Rendering3D(Rendering):
         self.camera_shift = 0*self.camera_y_angle  # To be continued..
 
         self.inner_corners, self.outer_corners = self.list_those_corners()  # [local_side_index][right=0, left=1]
+        self.journey_steps = config.tile_size * np.array([[0, -1], [1, 0], [0, 1], [-1, 0]])
 
     def update(self):
         self.draw_background()
@@ -47,16 +47,10 @@ class Rendering3D(Rendering):
         left = self.explorer.rotation - self.camera_span[0] / 2.0
         right = self.explorer.rotation + self.camera_span[0] / 2.0
         wall_segment = np.array([[-1, -1], [-1, -1]])  # [[r_left, phi_left], [r_right, phi_right]]
-        self.draw_walls_recursive(self.explorer, left, right, wall_segment, np.array([[0], [0]]))
+        self.draw_walls_recursive(self.explorer, left, right, wall_segment, np.array([0, 0]))
 
     def draw_walls_recursive(self, probe, left_angle_limit, right_angle_limit, wall_segment, journey):
         prev = probe.local_index_to_previous
-
-        # Start by the first small corner segment to the right.
-        first_right_corner = self.to_polar(self.inner_corners[0+prev] + journey)
-        if first_right_corner[self.phi] > right_angle_limit:  # If first small segment visible
-            if self.extend(wall_segment, first_right_corner, left_angle_limit):
-                return  # No need to keep traversing if we lose visibility here already.
 
         # Now the tree walls from right to left
         for i in range(1, 4):
@@ -65,7 +59,7 @@ class Rendering3D(Rendering):
             wall_here = self.maze.check_wall_with_placement(probe.pos_tile, global_index)
 
             # Find the far (ahead in rotation) inner corner and compute its angle.
-            far_corner = self.to_polar(self.inner_corners[local_index] + journey)
+            inner_left = self.to_polar(self.inner_corners[local_index] + journey)
 
             # Make a cut in the corner behind if it is an inner or outer corner.
             if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)):
@@ -73,78 +67,85 @@ class Rendering3D(Rendering):
 
             # Extend wall if there is a wall here.
             if wall_here:
-                if self.extend(wall_segment, far_corner, left_angle_limit):
+                if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):
                     break  # Break the loop if we met the left angle limit.
             else:  # If we have an opening
-                # TODO: If we know we have an opening, maybe it's smart to cover the wall pieces in to the next tile as well, so we can take away the code outside the loop.
-                outer_left = self.to_polar(self.outer_corners[local_index][self.right] + journey)
-                new_left_angle = min(far_corner[self.phi], outer_left[self.phi], left_angle_limit)
-                inner_right = self.to_polar(self.inner_corners[(local_index-1)%4] + journey)
-                outer_right = self.to_polar(self.outer_corners[local_index][self.right] + journey)
-                new_right_angle = max(inner_right[self.phi], outer_right[self.phi], right_angle_limit)
+                extra_step = self.outer_corners[local_index][self.left] - self.inner_corners[local_index]
+                inner_right = self.to_polar(self.inner_corners[(local_index - 1) % 4] + journey)
+                outer_right = self.to_polar(self.outer_corners[local_index][self.right] + extra_step + journey)
+                right_options = [inner_right[self.phi], outer_right[self.phi], right_angle_limit]
+                sorted_right_indices = np.flip(np.argsort(right_options))
 
-            #       If corner segment to the right is visible: (should grab this information from the min/max above)
-            #           If previous was a wall:
-            #               Extend the saved wall_segment to include it.
-            #           Else: If previous was an opening,
-            #               Draw the wall_segment.
-            #               Update it to represent the new small segment.
-            #               Draw it on the screen and update right_limit.
-            #       If left_limit still is > right_limit:
-            #           Call a new recursion with the updated limits and coordinate_additions.
-            #       If corner segment to the left is visible:
-            #           Draw the small corner segment to the right of the far inner corner and update left_limit.
-            #   Update the right edge of the dynamic wall_segment parameter to the value of the left edge.
-            #   If the right edge is now larger than left_limit:
-            #       Draw the stored wall segment and reset it
-            #       Break the loop.
+                outer_left = self.to_polar(self.outer_corners[local_index][self.left] + extra_step + journey)
+                left_options = [inner_left[self.phi], outer_left[self.phi], left_angle_limit]
+                sorted_left_indices = np.argsort(left_options)
+                new_left_angle = left_options[sorted_left_indices[0]]
 
-        last_left_corner = self.to_polar(self.inner_corners[(-1 + prev) % 4] + journey)
-        if last_left_corner[self.phi] > right_angle_limit:  # TODO: This small segment should adjust left_limit for the for loop.
-            if self.extend(wall_segment, first_right_corner, left_angle_limit):
-                return
+                if sorted_right_indices[0] == 1:  # If outer_right is inmost this segment is visible.
+                    if wall_segment[1] == -1:
+                        wall_segment[1] = right_options[sorted_right_indices[1]]  # TODO: I hate to say it but this only gives phi.
+                    self.extend(wall_segment, outer_right, left_angle_limit, right_angle_limit)
+
+                # Recursion call.
+                self.draw_walls_recursive(probe=probe.transfer_tile(self.maze, global_index, local_index),
+                                          right_angle_limit=right_options[sorted_right_indices[0]],
+                                          left_angle_limit=left_options[sorted_left_indices[0]],
+                                          wall_segment=wall_segment, journey=(journey+self.journey_steps[local_index]))
+
+                if sorted_left_indices[2] == 0:  # If inner_left is outermost this segment is visible.
+                    if wall_segment[1] == -1:
+                        wall_segment[1] = left_options[sorted_left_indices[1]]
+                    self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit)
 
     # Assumes straight wall segment without corners between itself and the new point.
     # Returns True if we met the left limit.
     def extend(self, wall_segment, new_point, left_limit, right_limit):
         # TODO: Check both left_limit and right limit and call split_cut() accordingly.
         if right_limit > new_point[self.phi]:
-            return False  # False?
+            self.split_cut(wall_segment)
+            return False
         elif new_point[self.phi] > left_limit:
             wall_segment[0] = np.array([-1, -1])  # TODO: Figure out a way to compute the new coordinates.
-            return True
+            self.split_cut(wall_segment)
+            return True  # Only if left limit exceeded.
         else:
             wall_segment[0] = new_point
             return False
 
     def join_cut(self, wall_segment):
         self.draw_wall_segment(wall_segment)
-        wall_segment[0] = wall_segment[1]
+        wall_segment[1] = wall_segment[0]
 
-    def split_cut(self, wall_segment, front_point):
+    def split_cut(self, wall_segment):
         self.draw_wall_segment(wall_segment)
-        wall_segment[0] = front_point
+        wall_segment[1] = -1
 
     def draw_wall_segment(self, wall_segment):
         polygon_points = [(0, 0), (0, 0), (0, 0), (0, 0)]
-        polygon_points[0], polygon_points[1] = self.get_vertical_points(self.angle_to_column, wall_segment[0][self.r])
-        polygon_points[3], polygon_points[2] = self.get_vertical_points(self.angle_to_column, wall_segment[1][self.r])
+        polygon_points[0], polygon_points[1] = self.get_vertical_points(self.angle_to_column(wall_segment[0][self.phi]),
+                                                                        wall_segment[0][self.r])
+        polygon_points[3], polygon_points[2] = self.get_vertical_points(self.angle_to_column(wall_segment[1][self.phi]),
+                                                                        wall_segment[1][self.r])
         pygame.draw.polygon(self.screen, self.edge_color, polygon_points, 3)
         pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
 
-    def to_polar(self, points):  # [r, phi]
-        polar = np.empty_like(points)
-        for i in range(len(points)):
-            polar[i][0] = np.hypot(points[0] - self.explorer.pos[0], points[1] - self.explorer.pos[1])
-            polar[i][1] = self.compute_angle(points[i])
+    def to_polar(self, point):  # [r, phi]
+        polar = np.array([0, 0])
+        polar[0] = np.hypot(point[0] - self.explorer.pos[0], point[1] - self.explorer.pos[1])
+        polar[1] = np.degrees(np.arctan2(point[1] - self.explorer.pos[1], point[0] - self.explorer.pos[0]))
         return polar
 
-    def compute_angle(self, point):
-        return np.degrees(np.arctan2(point[1] - self.explorer.pos[1], point[0] - self.explorer.pos[0]))
+    def angle_to_column(self, angle):
+        left_edge = self.explorer.rotation + self.camera_span//2
+        right_edge = self.explorer.rotation - self.camera_span//2
+        if right_edge > angle or angle > left_edge:
+            raise ValueError("Angle outside visible span!")
+
+        return (left_edge - angle) * self.SCREEN_SIZE[0] // self.camera_span
 
     def list_those_corners(self):
-        s = self.explorer.tile_size
-        w = self.explorer.wall_thickness
+        s = config.tile_size
+        w = config.wall_thickness
         inner = np.array([[s - w, w], [s - w, s - w], [w, s - w], [w, w]])
         outer = np.array([[[w, 0], [s - w, 0]], [[s, w], [s, s - w]], [[s - w, s], [w, s]], [[0, s - w], [0, w]]])
         return inner, outer

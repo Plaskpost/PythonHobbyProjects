@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import config
 
 
 class Explorer:
@@ -11,11 +12,9 @@ class Explorer:
     x = 0
     y = 1
 
-    def __init__(self, tile_size, wall_thickness, pos, pos_tile, global_prev, local_prev):
+    def __init__(self, pos, pos_tile, global_prev, local_prev):
         self.pos = pos
         self.pos_tile = pos_tile
-        self.tile_size = tile_size
-        self.wall_thickness = wall_thickness
         self.global_index_to_previous_tile = global_prev
         self.local_index_to_previous = local_prev
 
@@ -32,49 +31,47 @@ class Explorer:
 
         # Change local coordinates
         if local_index_to_new == self.DOWN:
-            self.pos[self.y] += self.tile_size
+            self.pos[self.y] += config.tile_size
         elif local_index_to_new == self.RIGHT:
-            self.pos[self.x] -= self.tile_size
+            self.pos[self.x] -= config.tile_size
         elif local_index_to_new == self.UP:
-            self.pos[self.y] -= self.tile_size
+            self.pos[self.y] -= config.tile_size
         elif local_index_to_new == self.LEFT:
-            self.pos[self.x] += self.tile_size
+            self.pos[self.x] += config.tile_size
         else:
             raise ValueError("Invalid direction!")
+
+        return self.__copy__()
 
     def opposite_of(self, direction):
         return (direction + 2) % 4
 
     def __copy__(self):
-        return Explorer(self.tile_size, self.wall_thickness, self.pos, self.pos_tile,
+        return Explorer(self.pos, self.pos_tile,
                         self.global_index_to_previous_tile, self.local_index_to_previous)
 
 
 class Player(Explorer):
 
-    def __init__(self, movement_speed, rotation_speed, tile_size, wall_thickness, player_radius):
-        super().__init__(pos=np.array([tile_size / 2.0, tile_size / 2.0]), pos_tile="",
-                         tile_size=tile_size, wall_thickness=wall_thickness, global_prev=0, local_prev=Explorer.DOWN)
-
-        self.movement_speed = movement_speed
-        self.rotation_speed = rotation_speed
-        self.player_radius = player_radius
+    def __init__(self):
+        super().__init__(pos=np.array([config.tile_size / 2.0, config.tile_size / 2.0]), pos_tile="",
+                         global_prev=0, local_prev=Explorer.DOWN)
 
         self.rotation = 90  # Initially UP.
 
     def move(self, maze, flbr):
         rotation_matrix = np.array([[0, -1], [1, 0]])
         rotation_matrix = np.linalg.matrix_power(rotation_matrix, flbr)
-        v = self.movement_speed * np.array([math.cos(math.radians(self.rotation)),
-                                                      math.sin(math.radians(self.rotation))])
+        v = config.movement_speed * np.array([math.cos(math.radians(self.rotation)),
+                                              math.sin(math.radians(self.rotation))])
         v = np.dot(rotation_matrix, v)
         self.pos += v
-        near_edge = [(self.pos[1] < self.player_radius and v[1] < 0),
-                     (self.pos[0] >= self.tile_size - self.player_radius and v[0] > 0),
-                     (self.pos[1] >= self.tile_size - self.player_radius and v[1] > 0),
-                     (self.pos[0] < self.player_radius and v[0] < 0)]
-        across_edge = [(self.pos[1] < 0), (self.pos[0] >= self.tile_size),
-                       (self.pos[1] >= self.tile_size), (self.pos[0] < 0)]
+        near_edge = [(self.pos[1] < config.player_radius and v[1] < 0),
+                     (self.pos[0] >= config.tile_size - config.player_radius and v[0] > 0),
+                     (self.pos[1] >= config.tile_size - config.player_radius and v[1] > 0),
+                     (self.pos[0] < config.player_radius and v[0] < 0)]
+        across_edge = [(self.pos[1] < 0), (self.pos[0] >= config.tile_size),
+                       (self.pos[1] >= config.tile_size), (self.pos[0] < 0)]
         for i in range(4):  # i in local {DOWN, RIGHT, UP, LEFT}
             index_to_tile_ahead = self.global_index_to(i)
             x_or_y = (1 + i) % 2
@@ -98,7 +95,7 @@ class Player(Explorer):
 class Ray(Explorer):
 
     def __init__(self, player, direction):
-        super().__init__(player.tile_size, player.wall_thickness, player.pos, player.pos_tile, player.global_prev, player.local_prev)
+        super().__init__(player.pos, player.pos_tile, player.global_prev, player.local_prev)
         self.direction = direction
 
     def old_shoot(self, maze, direction, debugging_in_2D):
@@ -106,24 +103,24 @@ class Ray(Explorer):
         x = self.x
         y = self.y
 
-        outer_wall_limit = self.tile_size - self.wall_thickness
+        outer_wall_limit = config.tile_size - config.wall_thickness
         distance = 0
         tile_path = []
 
         while True:
             cos_r = math.cos(math.radians(direction))
             sin_r = math.sin(math.radians(direction))
-            dx = self.tile_size - self.pos[x] if cos_r > 0 else self.pos[x]
-            dy = self.tile_size - self.pos[y] if sin_r > 0 else self.pos[y]
+            dx = config.tile_size - self.pos[x] if cos_r > 0 else self.pos[x]
+            dy = config.tile_size - self.pos[y] if sin_r > 0 else self.pos[y]
 
             # Start by checking if we've collided with the edge of a wall.
-            if self.pos[x] < self.wall_thickness and \
+            if self.pos[x] < config.wall_thickness and \
                     maze.check_wall_with_placement(self.pos_tile, self.global_index_to(self.LEFT)):
                 break  # This simple?
             elif self.pos[x] > outer_wall_limit and \
                     maze.check_wall_with_placement(self.pos_tile, self.global_index_to(self.RIGHT)):
                 break
-            if self.pos[y] < self.wall_thickness and \
+            if self.pos[y] < config.wall_thickness and \
                     maze.check_wall_with_placement(self.pos_tile, self.global_index_to(self.DOWN)):
                 break
             elif self.pos[y] > outer_wall_limit and \
@@ -152,7 +149,7 @@ class Ray(Explorer):
             if dimension_hit == x:
                 if cos_r > 0:
                     local_border_hit = self.RIGHT
-                    self.pos[x] = self.tile_size
+                    self.pos[x] = config.tile_size
                 else:
                     local_border_hit = self.LEFT
                     self.pos[x] = 0
@@ -160,7 +157,7 @@ class Ray(Explorer):
             else:
                 if sin_r > 0:
                     local_border_hit = self.UP
-                    self.pos[y] = self.tile_size
+                    self.pos[y] = config.tile_size
                 else:
                     local_border_hit = self.DOWN
                     self.pos[y] = 0
@@ -169,24 +166,24 @@ class Ray(Explorer):
             # Check if we hit a wall.
             global_border_hit = self.global_index_to(local_border_hit)  # Why ray is a separate object.
             if maze.check_wall_with_placement(self.pos_tile, global_border_hit):  # True if wall.
-                wall_reductions = np.abs(np.array([self.wall_thickness / cos_r, self.wall_thickness / sin_r]))
+                wall_reductions = np.abs(np.array([config.wall_thickness / cos_r, config.wall_thickness / sin_r]))
                 distance -= wall_reductions[dimension_hit]
                 break  # Break loop when wall is hit.
 
             # Check if we hit one of our walls in the corner.
-            mirrored_pos = np.array([self.pos, self.tile_size-self.pos])
+            mirrored_pos = np.array([self.pos, config.tile_size-self.pos])
             over_or_under = np.argmin(mirrored_pos, axis=0)
             dists_from_wall = np.array([mirrored_pos[over_or_under[0], 0], mirrored_pos[over_or_under[1], 1]])
-            if np.sum(dists_from_wall) < self.wall_thickness:
+            if np.sum(dists_from_wall) < config.wall_thickness:
                 rot_matrix = -(2*(dimension_hit-0.5)).astype(int) * np.array([[1, -1], [-1, 1]])
                 rotation = rot_matrix[over_or_under[0], over_or_under[1]]
                 global_index_to_wall_of_interest = (global_border_hit + rotation) % 4
                 if maze.check_wall_with_placement(self.pos_tile, global_index_to_wall_of_interest):
-                    distance -= dimension_hit * (self.wall_thickness - dists_from_wall[self.x]) / abs(cos_r) + \
-                                (1-dimension_hit) * (self.wall_thickness - dists_from_wall[self.y]) / abs(sin_r)
+                    distance -= dimension_hit * (config.wall_thickness - dists_from_wall[self.x]) / abs(cos_r) + \
+                                (1-dimension_hit) * (config.wall_thickness - dists_from_wall[self.y]) / abs(sin_r)
                     break
 
-            if distance > 100 * self.tile_size:
+            if distance > 100 * config.tile_size:
                 raise RuntimeError("Error: Distance", distance, " too large! Something must have gone wrong.")
 
             # Update ray object for next iteration.

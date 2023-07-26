@@ -3,6 +3,7 @@ import time
 import pygame
 import numpy as np
 import multiprocessing
+import config
 
 from DynamicMaze import DynamicMaze
 from Rendering2D import Rendering2D
@@ -10,27 +11,11 @@ from Rendering3D import Rendering3D
 from Explorer import Player
 
 
-# Constants
-DOWN = 0
-RIGHT = 1
-UP = 2
-LEFT = 3
-
-movement_speed = 1.4
-rotation_speed = 1.3  # Ok degrees
-tile_size = 80
-wall_thickness = 5  # *2
-player_radius = 10
-average_walls_per_tile = 2.0
-seed = 44
-fixed_seed = True
-
-
 def run_game():
-    if fixed_seed:
-        np.random.seed(seed)
-    explorer = Player(movement_speed, rotation_speed, tile_size, wall_thickness, player_radius)
-    maze = DynamicMaze(explorer.pos_tile, average_walls_per_tile)
+    if config.fixed_seed:
+        np.random.seed(config.seed)
+    explorer = Player()
+    maze = DynamicMaze(explorer.pos_tile)
     renderer = Rendering3D(maze, explorer)
     renderer.update()
 
@@ -59,10 +44,10 @@ def run_game():
             explorer.move(maze=maze, flbr=3)
             pressed = True
         if keys[pygame.K_LEFT] or keys[pygame.K_KP4]:
-            explorer.rotate(left=True, amount=rotation_speed)
+            explorer.rotate(left=True, amount=config.rotation_speed)
             pressed = True
         if keys[pygame.K_RIGHT] or keys[pygame.K_KP6]:
-            explorer.rotate(left=False, amount=rotation_speed)
+            explorer.rotate(left=False, amount=config.rotation_speed)
             pressed = True
 
         # Switch visualizing mode with 'keypad 0'
