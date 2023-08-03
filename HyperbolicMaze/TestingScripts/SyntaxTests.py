@@ -1,24 +1,26 @@
 import math
-import numpy as np
 
-r = 0
-phi = 1
+def find_on_line(point1, point2, angle3):
+    r1, theta1 = point1
+    r2, theta2 = point2
+    theta3 = (theta2 + angle3) % 360
 
+    # Calculate the difference in radii and the angle between the points
+    delta_r = r2 - r1
+    delta_theta = (theta3 - theta1) % 360
 
-def find_on_line(point1, point2, phi_c):
-    a = point1[r]
-    b = point2[r]
-    gamma = np.radians(abs((point1[phi] - point2[phi]) % 360))
-    gamma_bc = np.radians(abs((phi_c - point2[phi]) % 360))
-    c = math.sqrt(a**2 + b**2 - 2*a*b * math.cos(gamma))
-    alpha = math.acos((b**2 + c**2 - a**2) / (2 * b * c))
-    return math.sin(alpha) * b / math.sin(math.pi-alpha-gamma_bc)
+    # Convert the angle to radians
+    delta_theta_radians = math.radians(delta_theta)
 
+    # Calculate the distance to the third point using the law of cosines
+    distance = math.sqrt(r1**2 + r2**2 - 2 * r1 * r2 * math.cos(delta_theta_radians))
 
-# Define the points in polar coordinates (r, phi)
-A = np.array([1, 45])  # r_a = 1, phi_a = 1 degree
-B = np.array([1, 1])  # r_b = 1, phi_b = 179 degrees
-phi_c = 90  # Angle to the third point C in degrees
+    return distance
 
-distance_c = find_on_line(A, B, phi_c)
-print("Distance to the third point C:", distance_c)
+# Example usage:
+point1 = (1, 179)  # r = 5, theta = 30 degrees
+point2 = (1, 1)  # r = 8, theta = 60 degrees
+angle3 = 80     # Angle of the third point with respect to point2
+
+distance_to_third_point = find_on_line(point1, point2, angle3)
+print(distance_to_third_point)

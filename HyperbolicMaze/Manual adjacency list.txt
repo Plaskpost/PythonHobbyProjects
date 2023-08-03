@@ -86,3 +86,7 @@ Outer options: [[[w, 0], [1-w, 0]], [[1, w], [1, 1-w]], [[1-w, 1], [w, 1]], [[0,
 
 1st index: i + previous, where previous is the local index of the direction we came from (opposite of direction stepped).
 2nd: 0 before recursion, 1 after. Special case: 1 before for loop, 0 after.
+
+Which angles are correct: (-180, 180]
+a > c > b > a-180: 1
+Assuming the point c is always in [a, b] or [b, a], the only error occurs when phi_a > 0, phi_b < 0, phi_c < 0.

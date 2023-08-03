@@ -46,10 +46,11 @@ class Rendering3D(Rendering):
         pygame.draw.polygon(self.screen, self.floor_color, polygon_points)
 
     def draw_walls(self):
-        left_limit = self.explorer.rotation - config.camera_span[0] / 2.0
-        right_limit = self.explorer.rotation + config.camera_span[0] / 2.0
-        wall_segment = np.array([[-1, -1], [-1, -1]])  # [[r_left, phi_left], [r_right, phi_right]]
-        self.draw_walls_recursive(self.explorer, left_limit, right_limit, wall_segment, np.array([0, 0]))
+        left_limit = self.explorer.rotation + config.camera_span[0] / 2.0
+        right_limit = self.explorer.rotation - config.camera_span[0] / 2.0
+        wall_segment = np.array([[-1.0, -1.0], [-1.0, -1.0]])  # [[r_left, phi_left], [r_right, phi_right]]
+        wall_segment[1] = self.to_polar(self.inner_corners[0])
+        self.draw_walls_recursive(self.explorer.__copy__(), left_limit, right_limit, wall_segment, np.array([0, 0]))
 
     def draw_walls_recursive(self, probe, left_angle_limit, right_angle_limit, wall_segment, journey):
         prev = probe.local_index_to_previous
@@ -60,15 +61,16 @@ class Rendering3D(Rendering):
             global_index = probe.global_index_to(local_index)
             wall_here = self.maze.check_wall_with_placement(probe.pos_tile, global_index)
 
-            # Find the far (ahead in rotation) inner corner and compute its angle.
+            # Find the far (ahead in rotation) inner corner.
             inner_left = self.to_polar(self.inner_corners[local_index] + journey)
 
             # Make a cut in the corner behind if it is an inner or outer corner.
-            if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)):
-                self.join_cut(wall_segment)  # TODO: This triggers even if the corner in question is outside the visible range.
+            if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)) and not self.wall_cut:
+                self.join_cut(wall_segment)
 
             # Extend wall if there is a wall here.
-            if wall_here:
+            # We'll do the same if we're outside view to the right to be in phase when back.
+            if wall_here or inner_left[self.phi] < right_angle_limit:
                 if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):
                     break  # Break the loop if we met the left angle limit.
             else:  # If we have an opening
@@ -83,7 +85,6 @@ class Rendering3D(Rendering):
                 sorted_left_indices = np.argsort(left_options)
 
                 if sorted_right_indices[0] == 1:  # If outer_right is inmost this segment is visible.
-                    # I gambled on removing a wall_cut check here.
                     self.extend(wall_segment, outer_right, left_angle_limit, right_angle_limit)
 
                 # Recursion call.
@@ -102,8 +103,9 @@ class Rendering3D(Rendering):
     # Returns True if we met the left limit.
     def extend(self, wall_segment, new_point, left_limit, right_limit):
         if right_limit > new_point[self.phi]:
+            if not self.wall_cut:
+                self.split_cut(wall_segment)
             wall_segment[0] = new_point
-            self.split_cut(wall_segment)
             return False
         elif new_point[self.phi] > left_limit:
             wall_segment[0] = self.find_on_line(wall_segment[0], new_point, left_limit)
@@ -122,7 +124,7 @@ class Rendering3D(Rendering):
 
     def split_cut(self, wall_segment):
         self.draw_wall_segment(wall_segment)
-        wall_segment[1] = -1
+        wall_segment[1] = [None, None]
         self.wall_cut = True
 
     def draw_wall_segment(self, wall_segment):
@@ -134,17 +136,21 @@ class Rendering3D(Rendering):
         pygame.draw.polygon(self.screen, self.edge_color, polygon_points, 3)
         pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
 
+        # TEMPORARY LINE
+        pygame.display.flip()
+
     def to_polar(self, point):  # [r, phi]
-        polar = np.array([0, 0])
+        polar = np.array([0.0, 0.0])
         polar[0] = np.hypot(point[0] - self.explorer.pos[0], point[1] - self.explorer.pos[1])
         polar[1] = np.degrees(np.arctan2(point[1] - self.explorer.pos[1], point[0] - self.explorer.pos[0]))
         return polar
 
+    # TODO: Make find_on_line() failproof.
     def find_on_line(self, point1, point2, angle3):
         a = point1[self.r]
         b = point2[self.r]
-        gamma = np.radians(abs((point1[self.phi] - point2[self.phi]) % 360))
-        gamma_bc = np.radians(abs((angle3 - point2[self.phi]) % 360))
+        gamma = math.radians(abs((point1[self.phi] - point2[self.phi]) % 360))
+        gamma_bc = math.radians(abs((angle3 - point2[self.phi]) % 360))
         c = math.sqrt(a ** 2 + b ** 2 - 2 * a * b * math.cos(gamma))
         alpha = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
         return math.sin(alpha) * b / math.sin(math.pi - alpha - gamma_bc)
@@ -164,44 +170,17 @@ class Rendering3D(Rendering):
         outer = np.array([[[w, 0], [s - w, 0]], [[s, w], [s, s - w]], [[s - w, s], [w, s]], [[0, s - w], [0, w]]])
         return inner, outer
 
-
-# ------------------ OLD FUNCTIONS ----------------------
-
-    def old_draw_walls(self):
-        screen_width = self.SCREEN_SIZE[0]
-        direction = self.explorer.rotation - self.camera_span[0] / 2.0
-        edge_tolerance = 1.6 * self.camera_span[0] / screen_width
-        polygon_points = [(0, 0), (0, 0), (0, 0), (0, 0)]
-
-        distance = -1
-        distance_front = Ray.shoot(self.maze, self.explorer, direction)
-        polygon_points[0], polygon_points[1] = self.get_vertical_points(column=0, distance=distance_front)
-        for col in range(screen_width):
-            direction += self.camera_span[0] / (screen_width - 1)
-            distance_back = distance
-            distance = distance_front
-            distance_front = Ray.shoot(self.maze, self.explorer, direction)
-
-            if distance_back != -1:
-                edge_value = abs((distance_front - distance) - (distance - distance_back))
-                if edge_value > edge_tolerance:
-                    polygon_points[3], polygon_points[2] = self.get_vertical_points(col - 1, distance_back)
-                    pygame.draw.polygon(self.screen, self.edge_color, polygon_points, 3)
-                    pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
-                    polygon_points[0], polygon_points[1] = self.get_vertical_points(col + 1, distance_front)
-        polygon_points[3], polygon_points[2] = self.get_vertical_points(screen_width - 1, distance)
-        pygame.draw.polygon(self.screen, self.edge_color, polygon_points, 2)
-        pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
-
     def get_vertical_points(self, column, distance):
+        if column < 0 or column > config.SCREEN_SIZE[0]:
+            raise ValueError("Column value ", column, " outside range!")
         line_length = np.round(self.vertical_scale/max(distance, 0.001)).astype(int)
-        start = self.camera_shift + (self.SCREEN_SIZE[1] - line_length) // 2
-        end = self.camera_shift + (self.SCREEN_SIZE[1] + line_length) // 2
+        start = self.camera_shift + (config.SCREEN_SIZE[1] - line_length) // 2
+        end = self.camera_shift + (config.SCREEN_SIZE[1] + line_length) // 2
 
         return (self.col_invert(column), start), (self.col_invert(column), end)
 
     def col_invert(self, col):
-        return self.SCREEN_SIZE[0]-1 - col
+        return config.SCREEN_SIZE[0]-1 - col
 
 
 
