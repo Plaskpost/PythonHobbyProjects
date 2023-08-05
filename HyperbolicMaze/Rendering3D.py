@@ -1,4 +1,6 @@
 import math
+import time
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pygame.display
@@ -70,7 +72,7 @@ class Rendering3D(Rendering):
 
             # Extend wall if there is a wall here.
             # We'll do the same if we're outside view to the right to be in phase when back.
-            if wall_here or inner_left[self.phi] < right_angle_limit:
+            if wall_here or right_angle_limit > inner_left[self.phi]:
                 if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):
                     break  # Break the loop if we met the left angle limit.
             else:  # If we have an opening
@@ -93,7 +95,7 @@ class Rendering3D(Rendering):
                                           left_angle_limit=left_options[sorted_left_indices[0]],
                                           wall_segment=wall_segment, journey=(journey+self.journey_steps[local_index]))
 
-                if sorted_left_indices[2] == 0:  # If inner_left is outermost, this segment is visible.
+                if sorted_left_indices[0] == 1:  # If outer_left is inmost, this segment is visible.
                     if self.wall_cut:
                         wall_segment[1] = outer_left
                         self.wall_cut = False
@@ -121,7 +123,7 @@ class Rendering3D(Rendering):
     def join_cut(self, wall_segment):
         self.draw_wall_segment(wall_segment)
         wall_segment[1] = wall_segment[0]
-
+# TODO: Somewhere here draw() is called with wall_segment[1] = [nan, nan]
     def split_cut(self, wall_segment):
         self.draw_wall_segment(wall_segment)
         wall_segment[1] = [None, None]
@@ -138,6 +140,7 @@ class Rendering3D(Rendering):
 
         # TEMPORARY LINE
         pygame.display.flip()
+        time.sleep(0.5)
 
     def to_polar(self, point):  # [r, phi]
         polar = np.array([0.0, 0.0])
@@ -145,15 +148,27 @@ class Rendering3D(Rendering):
         polar[1] = np.degrees(np.arctan2(point[1] - self.explorer.pos[1], point[0] - self.explorer.pos[0]))
         return polar
 
-    # TODO: Make find_on_line() failproof.
     def find_on_line(self, point1, point2, angle3):
-        a = point1[self.r]
-        b = point2[self.r]
-        gamma = math.radians(abs((point1[self.phi] - point2[self.phi]) % 360))
-        gamma_bc = math.radians(abs((angle3 - point2[self.phi]) % 360))
+        cond1 = self.is_in_quadrant(point1[self.phi], 2) and self.is_in_quadrant(point2[self.phi], 3) and self.is_in_quadrant(angle3, 2)
+        cond2 = self.is_in_quadrant(point1[self.phi], 3) and self.is_in_quadrant(point2[self.phi], 2) and self.is_in_quadrant(angle3, 3)
+        if cond1 or cond2:
+            dummy = point1
+            point1 = point2
+            point2 = dummy
+        a = point1[0]
+        b = point2[0]
+        gamma = math.radians(abs(point1[self.phi] - point2[self.phi]))
+        gamma_bc = math.radians(abs(angle3 - point2[self.phi]))
+
         c = math.sqrt(a ** 2 + b ** 2 - 2 * a * b * math.cos(gamma))
         alpha = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
-        return math.sin(alpha) * b / math.sin(math.pi - alpha - gamma_bc)
+        distance = math.sin(alpha) * b / math.sin(math.pi - alpha - gamma_bc)
+        return np.array([distance, angle3])
+
+    def is_in_quadrant(self, angle, quadrant):
+        lower_limit = 90 * (quadrant - 1)
+        upper_limit = 90 * quadrant
+        return lower_limit < (angle % 360) < upper_limit
 
     def angle_to_column(self, angle):
         left_edge = self.explorer.rotation + config.camera_span[0]//2
@@ -177,7 +192,7 @@ class Rendering3D(Rendering):
         start = self.camera_shift + (config.SCREEN_SIZE[1] - line_length) // 2
         end = self.camera_shift + (config.SCREEN_SIZE[1] + line_length) // 2
 
-        return (self.col_invert(column), start), (self.col_invert(column), end)
+        return (column, start), (column, end)
 
     def col_invert(self, col):
         return config.SCREEN_SIZE[0]-1 - col
