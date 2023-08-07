@@ -6,6 +6,7 @@ LEFT = 3
 
 movement_speed = 1.4
 rotation_speed = 1.3  # Ok degrees
+initial_rotation = 90
 tile_size = 80
 wall_thickness = 5  # *2
 player_radius = 10

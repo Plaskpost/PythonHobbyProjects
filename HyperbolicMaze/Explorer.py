@@ -41,8 +41,6 @@ class Explorer:
         else:
             raise ValueError("Invalid direction!")
 
-        return self.__copy__()
-
     def opposite_of(self, direction):
         return (direction + 2) % 4
 
@@ -57,7 +55,7 @@ class Player(Explorer):
         super().__init__(pos=np.array([config.tile_size / 2.0, config.tile_size / 2.0]), pos_tile="",
                          global_prev=0, local_prev=Explorer.DOWN)
 
-        self.rotation = 90  # Initially UP.
+        self.rotation = config.initial_rotation
 
     def move(self, maze, flbr):
         rotation_matrix = np.array([[0, -1], [1, 0]])
@@ -94,11 +92,11 @@ class Player(Explorer):
 
 class Ray(Explorer):
 
-    def __init__(self, player, direction):
-        super().__init__(player.pos, player.pos_tile, player.global_prev, player.local_prev)
-        self.direction = direction
+    def __init__(self, player):
+        super().__init__(player.pos.__copy__(), player.pos_tile,
+                         player.global_index_to_previous_tile, player.local_index_to_previous)
 
-    def old_shoot(self, maze, direction, debugging_in_2D):
+    def shoot(self, maze, direction, debugging_in_2D):
         # Indices
         x = self.x
         y = self.y
@@ -190,18 +188,3 @@ class Ray(Explorer):
             self.transfer_tile(maze=maze, global_index_to_new=global_border_hit, local_index_to_new=local_border_hit)
 
         return distance
-
-    @staticmethod
-    def shoot_all(maze, player, left_edge, right_edge):
-        ray = Ray(player, left_edge)
-        # - Initialize Tile every time a new Tile is encountered.
-        # May happen that we drop the tile memory after we exit this function, I'll see about that.
-
-        tiles = {ray.pos_tile: Tile(ray.pos_tile)}
-
-        while True:
-            tile_id = ray.pos_tile
-            if tile_id not in tiles:
-                tiles[tile_id] = Tile(tile_id)
-
-        return None

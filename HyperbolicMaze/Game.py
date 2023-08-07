@@ -16,7 +16,7 @@ def run_game():
         np.random.seed(config.seed)
     explorer = Player()
     maze = DynamicMaze(explorer.pos_tile)
-    renderer = Rendering3D(maze, explorer)
+    renderer = Rendering2D(maze, explorer)
     renderer.update()
 
     flip = False
