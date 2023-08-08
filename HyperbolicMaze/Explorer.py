@@ -45,7 +45,7 @@ class Explorer:
         return (direction + 2) % 4
 
     def __copy__(self):
-        return Explorer(self.pos, self.pos_tile,
+        return Explorer(self.pos.__copy__(), self.pos_tile,
                         self.global_index_to_previous_tile, self.local_index_to_previous)
 
 

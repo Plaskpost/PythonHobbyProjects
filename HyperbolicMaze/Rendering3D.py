@@ -69,11 +69,20 @@ class Rendering3D(Rendering):
             if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)) and not self.wall_cut:
                 self.join_cut(wall_segment)
 
+            if probe.pos_tile == "UR" and i == 3 and self.explorer.rotation <= 43.0:
+                self.print_debug_info(probe.pos_tile, i, wall_segment, (left_angle_limit, right_angle_limit), inner_left)
+
             # Extend wall if there is a wall here.
             # We'll do the same if we're outside view to the right to be in phase when back.
-            if wall_here or right_angle_limit > inner_left[self.phi]: # TODO: self.explorer.pos[1] is now negative for some reason.
-                if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):
-                    break  # Break the loop if we met the left angle limit.
+            if wall_here or right_angle_limit > inner_left[self.phi]:
+                try:
+                    right_met = self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit)
+                except TypeError:
+                    print("TypeError encountered!")
+                    self.print_debug_info(probe.pos_tile, i, wall_segment, (left_angle_limit, right_angle_limit), inner_left)
+                    raise RuntimeError
+                if right_met:
+                    return  # Break the loop if we met the left angle limit.
             else:  # If we have an opening
                 extra_step = self.outer_corners[local_index][self.left] - self.inner_corners[local_index]
                 inner_right = self.to_polar(self.inner_corners[(local_index - 1) % 4] + journey)
@@ -86,7 +95,8 @@ class Rendering3D(Rendering):
                 sorted_left_indices = np.argsort(left_options)
 
                 if sorted_right_indices[0] == 1:  # If outer_right is inmost this segment is visible.
-                    self.extend(wall_segment, outer_right, left_angle_limit, right_angle_limit)
+                    if self.extend(wall_segment, outer_right, left_angle_limit, right_angle_limit):
+                        return
 
                 # Recursion call.
                 new_probe = probe.__copy__()
@@ -100,10 +110,13 @@ class Rendering3D(Rendering):
                     if self.wall_cut:
                         wall_segment[1] = outer_left
                         self.wall_cut = False
-                    self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit)  # Enough because extend will catch the left limit.
-                elif sorted_left_indices[0] == 0: # If inner_left is inmost, wall_segment starts over here. Checking wall_cut should be redundant but let's keep it.
+                    if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):  # Enough because extend will catch the left limit.
+                        return
+                elif sorted_left_indices[0] == 0:  # If inner_left is inmost, wall_segment starts over here.
                     wall_segment[1] = inner_left
                     self.wall_cut = False
+                elif sorted_left_indices[0] == 2:  # If the limit is inmost there is no point in continuing the loop.
+                    return
 
 
 # ----------------- FUNCTIONS FOR THE RECURSIVE ALGORITHM TO CALL -----------------------
@@ -111,20 +124,21 @@ class Rendering3D(Rendering):
     # Assumes straight wall segment without corners between itself and the new point.
     # Returns True if we met the left limit.
     def extend(self, wall_segment, new_point, left_limit, right_limit):
-        if right_limit > new_point[self.phi]:
+        if right_limit > new_point[self.phi]:  # Right limit exceeded.
             if not self.wall_cut:
                 self.split_cut(wall_segment)
-            wall_segment[0] = new_point
+            wall_segment[1] = new_point
             return False
-        elif new_point[self.phi] > left_limit:
+        elif new_point[self.phi] > left_limit:  # Left limit exceeded.
             wall_segment[0] = self.find_on_line(wall_segment[0], new_point, left_limit)
             self.split_cut(wall_segment)
-            return True  # Only if left limit exceeded.
+            return True
         else:  # If new point within the span.
             if self.wall_cut:
-                wall_segment[1] = self.find_on_line(wall_segment[0], new_point, right_limit)
+                wall_segment[1] = self.find_on_line(wall_segment[1], new_point, right_limit)
                 self.wall_cut = False
             wall_segment[0] = new_point
+            self.join_cut(wall_segment)  # TEMPORARY LINE
             return False
 
     def join_cut(self, wall_segment):
@@ -140,7 +154,6 @@ class Rendering3D(Rendering):
         if self.debugging_in_2D:
             self.draw_top_view_corner_dots(wall_segment)
             pygame.display.flip()
-            time.sleep(2.5)
             return
         polygon_points = [(0, 0), (0, 0), (0, 0), (0, 0)]
         polygon_points[0], polygon_points[1] = self.get_vertical_points(self.angle_to_column(wall_segment[0][self.phi]),
@@ -156,11 +169,10 @@ class Rendering3D(Rendering):
 
     def draw_top_view_corner_dots(self, wall_segment):
         flip_y = np.array([1, -1])
-        xy0 = flip_y * self.to_cartesian([wall_segment[0][0], wall_segment[0][1] + self.explorer.rotation-config.initial_rotation]) + self.SCREEN_SIZE/2
-        xy1 = flip_y * self.to_cartesian([wall_segment[1][0], wall_segment[1][1] + self.explorer.rotation-config.initial_rotation]) + self.SCREEN_SIZE/2
+        xy0 = flip_y * self.to_cartesian([wall_segment[0][0], wall_segment[0][1] - self.explorer.rotation+config.initial_rotation]) + self.SCREEN_SIZE/2
+        xy1 = flip_y * self.to_cartesian([wall_segment[1][0], wall_segment[1][1] - self.explorer.rotation+config.initial_rotation]) + self.SCREEN_SIZE/2
         pygame.draw.circle(self.screen, (0, 200, 100), tuple(xy0), 4)
         pygame.draw.circle(self.screen, (0, 200, 100), tuple(xy1), 4)
-
 
     def find_on_line(self, point1, point2, angle3):
         cond1 = self.is_in_quadrant(point1[self.phi], 2) and self.is_in_quadrant(point2[self.phi], 3) and self.is_in_quadrant(angle3, 2)
@@ -178,7 +190,6 @@ class Rendering3D(Rendering):
         alpha = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
         distance = math.sin(alpha) * b / math.sin(math.pi - alpha - gamma_bc)
         return np.array([distance, angle3])
-
 
 # -------------------------- SOME NUMERICAL OPERATIONS ----------------------------
 
@@ -220,6 +231,23 @@ class Rendering3D(Rendering):
 
     def col_invert(self, col):
         return config.SCREEN_SIZE[0]-1 - col
+
+
+# ----------------------------- ERROR MESSAGE & STUFF -------------------------------
+
+    def print_debug_info(self, current_tile, wall_direction_index, wall_segment, limits, front_left_point):
+        print("")
+        print("Wall_segment: ", wall_segment)
+        in_cartesian = []
+        for point in wall_segment:
+            if point[0] is not None:
+                in_cartesian.append(self.to_cartesian(point))
+        print("In cartesian: ", in_cartesian)
+        print("Tile: ", current_tile)
+        print("Wall direction index: ", wall_direction_index)
+        print("Limits: ", limits)
+        print("Front left point: ", front_left_point)
+        print("Wall_cut: ", self.wall_cut)
 
 
 # --------------- THIS GUY THAT WAS TOO MANY LINES TO BE IN __init__() --------------

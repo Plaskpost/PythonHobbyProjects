@@ -20,7 +20,8 @@ def run_game():
     renderer.update()
 
     flip = False
-    printt = False  # I hate this strategy
+    print1 = False  # I hate this strategy
+    print2 = False  # Still do
     running = True
     while running:
         for event in pygame.event.get():
@@ -63,12 +64,19 @@ def run_game():
 
         # Print the whole adjacency_list with 'p'
         if keys[pygame.K_p]:
-            printt = True
-        elif printt and not keys[pygame.K_p]:
+            print1 = True
+        elif print1 and not keys[pygame.K_p]:
             print("Full adjacency map:")
             for tile, adjacents in maze.adjacency_map.items():
                 print(tile, ":", adjacents)
-            printt = False
+            print1 = False
+
+        # Print the whole adjacency_list with 'o'
+        if keys[pygame.K_o]:
+            print2 = True
+        elif print2 and not keys[pygame.K_o]:
+            #renderer.print_debug_info()
+            print2 = False
 
         if pressed:
             renderer.update()

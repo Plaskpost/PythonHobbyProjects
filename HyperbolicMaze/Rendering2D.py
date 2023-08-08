@@ -13,7 +13,7 @@ class Rendering2D(Rendering):
 
     def __init__(self, dynamic_maze, explorer):
         super().__init__("Overview", dynamic_maze, explorer)
-        self.NUM_RAYS = 2
+        self.NUM_RAYS = 3
         self.SQUARE_SIZE = config.tile_size
         self.WALL_THICKNESS = 5  # *2
         self.SQUARE_COLOR = (255, 255, 255)
@@ -74,7 +74,7 @@ class Rendering2D(Rendering):
                 # Draw walls
                 wall_x, wall_y, wall_w, wall_h = self.where_wall(i, square_center)
                 wall_center = (wall_x + wall_w//2 - self.SQUARE_SIZE//2, wall_y + wall_h//2 - self.SQUARE_SIZE//2)
-                self.draw_square(wall_center, rotation_degrees, (wall_w, wall_h), self.WALL_COLOR)
+                # self.draw_square(wall_center, rotation_degrees, (wall_w, wall_h), self.WALL_COLOR)
             else:  # Else call drawing function for surrounding tiles.
                 global_index = self.explorer.global_index_to(i)  # To be replaced with the probe strategy.
                 neighbor = self.maze.adjacency_map[tile][global_index]
@@ -138,3 +138,6 @@ class Rendering2D(Rendering):
         end_point = (center[0] + distance * math.cos(math.radians(direction - self.explorer.rotation + 90)),
                      center[1] + distance * math.sin(math.radians(direction - self.explorer.rotation - 90)))
         pygame.draw.line(self.screen, (100, 100, 255), center, end_point, 1)
+
+    def print_debug_info(self, current_tile, wall_direction_index, wall_segment, limits, front_left_point):
+        self.engine_3D.print_debug_info(current_tile, wall_direction_index, wall_segment, limits, front_left_point)

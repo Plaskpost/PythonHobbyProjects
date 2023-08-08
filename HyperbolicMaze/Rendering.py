@@ -16,8 +16,14 @@ class Rendering(ABC):
 
         self.SCREEN_SIZE = np.array([config.SCREEN_SIZE[0], config.SCREEN_SIZE[1]])
 
+        self.drawn_wall_segments = []
+
     @abstractmethod
     def update(self):
+        pass
+
+    @abstractmethod
+    def print_debug_info(self, current_tile, wall_direction_index, wall_segment, limits, front_left_point):
         pass
 
     def write_debug_info(self):
@@ -35,6 +41,7 @@ class Rendering(ABC):
                  "Neighbors at those directions: " + walkable_neighbors,
                  "Position coordinates: (" + string_pos[0] + ", " + string_pos[1] + ")",
                  "Last local step: " + directions[self.explorer.opposite_of(self.explorer.local_index_to_previous)]]
+
         for i in range(len(lines)):
             text = self.font.render(lines[i], True, (150, 150, 255))
             self.screen.blit(text, (10, 10 + i*(config.TEXT_SIZE+10)))
