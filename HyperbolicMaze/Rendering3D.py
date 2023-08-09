@@ -39,8 +39,8 @@ class Rendering3D(Rendering):
         pygame.display.flip()
 
     def draw_background(self):
-        screen_width = config.SCREEN_SIZE[0]
-        screen_height = config.SCREEN_SIZE[1]
+        screen_width = self.SCREEN_SIZE[0]
+        screen_height = self.SCREEN_SIZE[1]
         self.screen.fill(self.background_color)
         polygon_points = [(0, screen_height / 2 + self.camera_shift), (0, screen_height),
                           (screen_width, screen_height), (screen_width, screen_height / 2 + self.camera_shift)]
@@ -69,9 +69,6 @@ class Rendering3D(Rendering):
             if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)) and not self.wall_cut:
                 self.join_cut(wall_segment)
 
-            if probe.pos_tile == "UR" and i == 3 and self.explorer.rotation <= 43.0:
-                self.print_debug_info(probe.pos_tile, i, wall_segment, (left_angle_limit, right_angle_limit), inner_left)
-
             # Extend wall if there is a wall here.
             # We'll do the same if we're outside view to the right to be in phase when back.
             if wall_here or right_angle_limit > inner_left[self.phi]:
@@ -94,6 +91,7 @@ class Rendering3D(Rendering):
                 left_options = [inner_left[self.phi], outer_left[self.phi], left_angle_limit]
                 sorted_left_indices = np.argsort(left_options)
 
+                # Evaluate the little wall segment to the right.
                 if sorted_right_indices[0] == 1:  # If outer_right is inmost this segment is visible.
                     if self.extend(wall_segment, outer_right, left_angle_limit, right_angle_limit):
                         return
@@ -106,11 +104,12 @@ class Rendering3D(Rendering):
                                           left_angle_limit=left_options[sorted_left_indices[0]],
                                           wall_segment=wall_segment, journey=(journey+self.journey_steps[local_index]))
 
+                # Evaluate the little wall segment to the left
                 if sorted_left_indices[0] == 1:  # If outer_left is inmost, this segment is visible.
                     if self.wall_cut:
                         wall_segment[1] = outer_left
                         self.wall_cut = False
-                    if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):  # Enough because extend will catch the left limit.
+                    if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):
                         return
                 elif sorted_left_indices[0] == 0:  # If inner_left is inmost, wall_segment starts over here.
                     wall_segment[1] = inner_left
@@ -164,7 +163,7 @@ class Rendering3D(Rendering):
         pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
 
         # TEMPORARY LINE
-        pygame.display.flip()
+        #pygame.display.flip()
         #time.sleep(0.5)
 
     def draw_top_view_corner_dots(self, wall_segment):
@@ -218,19 +217,19 @@ class Rendering3D(Rendering):
         if right_edge > angle or angle > left_edge:
             raise ValueError("Angle outside visible span!")
 
-        return (left_edge - angle) * config.SCREEN_SIZE[0] // config.camera_span[0]
+        return (left_edge - angle) * self.SCREEN_SIZE[0] // config.camera_span[0]
 
     def get_vertical_points(self, column, distance):
-        if column < 0 or column > config.SCREEN_SIZE[0]:
+        if column < 0 or column > self.SCREEN_SIZE[0]:
             raise ValueError("Column value ", column, " outside range!")
         line_length = np.round(self.vertical_scale/max(distance, 0.001)).astype(int)
-        start = self.camera_shift + (config.SCREEN_SIZE[1] - line_length) // 2
-        end = self.camera_shift + (config.SCREEN_SIZE[1] + line_length) // 2
+        start = self.camera_shift + (self.SCREEN_SIZE[1] - line_length) // 2
+        end = self.camera_shift + (self.SCREEN_SIZE[1] + line_length) // 2
 
         return (column, start), (column, end)
 
     def col_invert(self, col):
-        return config.SCREEN_SIZE[0]-1 - col
+        return self.SCREEN_SIZE[0]-1 - col
 
 
 # ----------------------------- ERROR MESSAGE & STUFF -------------------------------

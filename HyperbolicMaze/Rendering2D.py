@@ -134,7 +134,7 @@ class Rendering2D(Rendering):
             self.draw_overview_line(ray_directions[i], ray_distances[i])
 
     def draw_overview_line(self, direction, distance):
-        center = (config.SCREEN_SIZE[0] // 2, config.SCREEN_SIZE[1] // 2)
+        center = (self.SCREEN_SIZE[0] // 2, self.SCREEN_SIZE[1] // 2)
         end_point = (center[0] + distance * math.cos(math.radians(direction - self.explorer.rotation + 90)),
                      center[1] + distance * math.sin(math.radians(direction - self.explorer.rotation - 90)))
         pygame.draw.line(self.screen, (100, 100, 255), center, end_point, 1)

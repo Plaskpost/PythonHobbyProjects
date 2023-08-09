@@ -8,13 +8,13 @@ class Rendering(ABC):
 
     def __init__(self, caption, dynamic_maze, explorer):
         pygame.init()
-        self.screen = pygame.display.set_mode(config.SCREEN_SIZE)
+        self.screen = pygame.display.set_mode(config.screen_size)
         self.font = pygame.font.SysFont('arial', config.TEXT_SIZE)
         pygame.display.set_caption(caption)
         self.maze = dynamic_maze
         self.explorer = explorer
 
-        self.SCREEN_SIZE = np.array([config.SCREEN_SIZE[0], config.SCREEN_SIZE[1]])
+        self.SCREEN_SIZE = np.array([config.screen_size[0], config.screen_size[1]])
 
         self.drawn_wall_segments = []
 

@@ -101,7 +101,8 @@ class Ray(Explorer):
         x = self.x
         y = self.y
 
-        outer_wall_limit = config.tile_size - config.wall_thickness
+        wall_thickness = config.wall_thickness
+        outer_wall_limit = config.tile_size - wall_thickness
         distance = 0
         tile_path = []
 
@@ -112,13 +113,13 @@ class Ray(Explorer):
             dy = config.tile_size - self.pos[y] if sin_r > 0 else self.pos[y]
 
             # Start by checking if we've collided with the edge of a wall.
-            if self.pos[x] < config.wall_thickness and \
+            if self.pos[x] < wall_thickness and \
                     maze.check_wall_with_placement(self.pos_tile, self.global_index_to(self.LEFT)):
                 break  # This simple?
             elif self.pos[x] > outer_wall_limit and \
                     maze.check_wall_with_placement(self.pos_tile, self.global_index_to(self.RIGHT)):
                 break
-            if self.pos[y] < config.wall_thickness and \
+            if self.pos[y] < wall_thickness and \
                     maze.check_wall_with_placement(self.pos_tile, self.global_index_to(self.DOWN)):
                 break
             elif self.pos[y] > outer_wall_limit and \
@@ -164,7 +165,7 @@ class Ray(Explorer):
             # Check if we hit a wall.
             global_border_hit = self.global_index_to(local_border_hit)  # Why ray is a separate object.
             if maze.check_wall_with_placement(self.pos_tile, global_border_hit):  # True if wall.
-                wall_reductions = np.abs(np.array([config.wall_thickness / cos_r, config.wall_thickness / sin_r]))
+                wall_reductions = np.abs(np.array([wall_thickness / cos_r, wall_thickness / sin_r]))
                 distance -= wall_reductions[dimension_hit]
                 break  # Break loop when wall is hit.
 
@@ -172,13 +173,13 @@ class Ray(Explorer):
             mirrored_pos = np.array([self.pos, config.tile_size-self.pos])
             over_or_under = np.argmin(mirrored_pos, axis=0)
             dists_from_wall = np.array([mirrored_pos[over_or_under[0], 0], mirrored_pos[over_or_under[1], 1]])
-            if np.sum(dists_from_wall) < config.wall_thickness:
+            if np.sum(dists_from_wall) < wall_thickness:
                 rot_matrix = -(2*(dimension_hit-0.5)).astype(int) * np.array([[1, -1], [-1, 1]])
                 rotation = rot_matrix[over_or_under[0], over_or_under[1]]
                 global_index_to_wall_of_interest = (global_border_hit + rotation) % 4
                 if maze.check_wall_with_placement(self.pos_tile, global_index_to_wall_of_interest):
-                    distance -= dimension_hit * (config.wall_thickness - dists_from_wall[self.x]) / abs(cos_r) + \
-                                (1-dimension_hit) * (config.wall_thickness - dists_from_wall[self.y]) / abs(sin_r)
+                    distance -= dimension_hit * (wall_thickness - dists_from_wall[self.x]) / abs(cos_r) + \
+                                (1-dimension_hit) * (wall_thickness - dists_from_wall[self.y]) / abs(sin_r)
                     break
 
             if distance > 100 * config.tile_size:
