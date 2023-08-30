@@ -40,7 +40,8 @@ class Rendering(ABC):
                  "Walkable global directions: " + walkable_directions,
                  "Neighbors at those directions: " + walkable_neighbors,
                  "Position coordinates: (" + string_pos[0] + ", " + string_pos[1] + ")",
-                 "Last local step: " + directions[self.explorer.opposite_of(self.explorer.local_index_to_previous)]]
+                 "Last local step: " + directions[self.explorer.opposite_of(self.explorer.local_index_to_previous)],
+                 "Player rotation: " + str(self.explorer.rotation)]
 
         for i in range(len(lines)):
             text = self.font.render(lines[i], True, (150, 150, 255))

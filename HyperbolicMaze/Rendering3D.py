@@ -47,16 +47,17 @@ class Rendering3D(Rendering):
         pygame.draw.polygon(self.screen, self.floor_color, polygon_points)
 
     def draw_walls(self):
-        left_limit = self.explorer.rotation + config.camera_span[0] / 2.0
-        right_limit = self.explorer.rotation - config.camera_span[0] / 2.0
+        left_limit = config.camera_span[0] / 2.0
+        right_limit = -config.camera_span[0] / 2.0
         wall_segment = np.array([[None, None], [None, None]])  # [[r_left, phi_left], [r_right, phi_right]]
-        wall_segment[1] = self.to_polar(self.inner_corners[0])
-        self.draw_walls_recursive(self.explorer.__copy__(), left_limit, right_limit, wall_segment, np.array([0, 0]))
+        wall_segment[1] = self.to_polar(self.inner_corners[(self.explorer.get_facing()-2) % 4])
+        self.wall_cut = True
+        self.draw_walls_recursive(probe=self.explorer.__copy__(), prev=(self.explorer.get_facing()-2),
+                                  left_angle_limit=left_limit, right_angle_limit=right_limit, wall_segment=wall_segment,
+                                  journey=np.array([0, 0]))
 
-    def draw_walls_recursive(self, probe, left_angle_limit, right_angle_limit, wall_segment, journey):
-        prev = probe.local_index_to_previous
+    def draw_walls_recursive(self, probe, prev, left_angle_limit, right_angle_limit, wall_segment, journey):
 
-        # Now the tree walls from right to left
         for i in range(1, 4):
             local_index = (i + prev) % 4
             global_index = probe.global_index_to(local_index)
@@ -64,6 +65,10 @@ class Rendering3D(Rendering):
 
             # Find the far (ahead in rotation) inner corner.
             inner_left = self.to_polar(self.inner_corners[local_index] + journey)
+
+            # Debug stop
+            #if self.explorer.pos_tile == "" and self.explorer.global_index_to_previous_tile == 2:
+            #    self.print_debug_info(probe.pos_tile, i, wall_segment, (left_angle_limit, right_angle_limit), inner_left)
 
             # Make a cut in the corner behind if it is an inner or outer corner.
             if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)) and not self.wall_cut:
@@ -84,11 +89,11 @@ class Rendering3D(Rendering):
                 extra_step = self.outer_corners[local_index][self.left] - self.inner_corners[local_index]
                 inner_right = self.to_polar(self.inner_corners[(local_index - 1) % 4] + journey)
                 outer_right = self.to_polar(self.outer_corners[local_index][self.right] + extra_step + journey)
-                right_options = [inner_right[self.phi], outer_right[self.phi], right_angle_limit]
+                right_options = np.array([inner_right[self.phi], outer_right[self.phi], right_angle_limit])
                 sorted_right_indices = np.flip(np.argsort(right_options))
 
                 outer_left = self.to_polar(self.outer_corners[local_index][self.left] + extra_step + journey)
-                left_options = [inner_left[self.phi], outer_left[self.phi], left_angle_limit]
+                left_options = np.array([inner_left[self.phi], outer_left[self.phi], left_angle_limit])
                 sorted_left_indices = np.argsort(left_options)
 
                 # Evaluate the little wall segment to the right.
@@ -99,7 +104,7 @@ class Rendering3D(Rendering):
                 # Recursion call.
                 new_probe = probe.__copy__()
                 new_probe.transfer_tile(self.maze, global_index, local_index)
-                self.draw_walls_recursive(probe=new_probe,
+                self.draw_walls_recursive(probe=new_probe, prev=new_probe.local_index_to_previous,
                                           right_angle_limit=right_options[sorted_right_indices[0]],
                                           left_angle_limit=left_options[sorted_left_indices[0]],
                                           wall_segment=wall_segment, journey=(journey+self.journey_steps[local_index]))
@@ -107,7 +112,10 @@ class Rendering3D(Rendering):
                 # Evaluate the little wall segment to the left
                 if sorted_left_indices[0] == 1:  # If outer_left is inmost, this segment is visible.
                     if self.wall_cut:
-                        wall_segment[1] = outer_left
+                        if right_angle_limit > outer_left[self.phi]:
+                            wall_segment[1] = self.find_on_line(inner_left, outer_left, right_angle_limit)
+                        else:
+                            wall_segment[1] = outer_left
                         self.wall_cut = False
                     if self.extend(wall_segment, inner_left, left_angle_limit, right_angle_limit):
                         return
@@ -129,7 +137,10 @@ class Rendering3D(Rendering):
             wall_segment[1] = new_point
             return False
         elif new_point[self.phi] > left_limit:  # Left limit exceeded.
-            wall_segment[0] = self.find_on_line(wall_segment[0], new_point, left_limit)
+            if self.wall_cut:
+                wall_segment[1] = self.find_on_line(wall_segment[1], new_point, right_limit)
+                self.wall_cut = False
+            wall_segment[0] = self.find_on_line(wall_segment[1], new_point, left_limit)
             self.split_cut(wall_segment)
             return True
         else:  # If new point within the span.
@@ -137,7 +148,7 @@ class Rendering3D(Rendering):
                 wall_segment[1] = self.find_on_line(wall_segment[1], new_point, right_limit)
                 self.wall_cut = False
             wall_segment[0] = new_point
-            self.join_cut(wall_segment)  # TEMPORARY LINE
+            #self.join_cut(wall_segment)  # TEMPORARY LINE
             return False
 
     def join_cut(self, wall_segment):
@@ -152,8 +163,9 @@ class Rendering3D(Rendering):
     def draw_wall_segment(self, wall_segment):
         if self.debugging_in_2D:
             self.draw_top_view_corner_dots(wall_segment)
-            pygame.display.flip()
+            #pygame.display.flip()
             return
+
         polygon_points = [(0, 0), (0, 0), (0, 0), (0, 0)]
         polygon_points[0], polygon_points[1] = self.get_vertical_points(self.angle_to_column(wall_segment[0][self.phi]),
                                                                         wall_segment[0][self.r])
@@ -162,33 +174,47 @@ class Rendering3D(Rendering):
         pygame.draw.polygon(self.screen, self.edge_color, polygon_points, 3)
         pygame.draw.polygon(self.screen, self.wall_color, polygon_points)
 
-        # TEMPORARY LINE
-        #pygame.display.flip()
-        #time.sleep(0.5)
-
     def draw_top_view_corner_dots(self, wall_segment):
         flip_y = np.array([1, -1])
-        xy0 = flip_y * self.to_cartesian([wall_segment[0][0], wall_segment[0][1] - self.explorer.rotation+config.initial_rotation]) + self.SCREEN_SIZE/2
-        xy1 = flip_y * self.to_cartesian([wall_segment[1][0], wall_segment[1][1] - self.explorer.rotation+config.initial_rotation]) + self.SCREEN_SIZE/2
-        pygame.draw.circle(self.screen, (0, 200, 100), tuple(xy0), 4)
-        pygame.draw.circle(self.screen, (0, 200, 100), tuple(xy1), 4)
+        internal0 = wall_segment[0]#self.to_cartesian([wall_segment[0][0], wall_segment[0][1]])
+        internal1 = wall_segment[1]#self.to_cartesian([wall_segment[1][0], wall_segment[1][1]])
+        xy0 = flip_y * self.to_cartesian([wall_segment[0][0], wall_segment[0][1]-self.explorer.rotation+config.initial_rotation]) + self.SCREEN_SIZE/2
+        xy1 = flip_y * self.to_cartesian([wall_segment[1][0], wall_segment[1][1]-self.explorer.rotation+config.initial_rotation]) + self.SCREEN_SIZE/2
+        xy0, xy1 = tuple(xy0), tuple(xy1)
+        pygame.draw.circle(self.screen, (0, 200, 100), xy0, 4)
+        pygame.draw.circle(self.screen, (0, 200, 100), xy1, 4)
+        formatted_strings0 = [format(f, '.1f') for f in internal0]
+        label0 = "(" + ', '.join(formatted_strings0) + ")"
+        formatted_strings1 = [format(f, '.1f') for f in internal1]
+        label1 = "(" + ', '.join(formatted_strings1) + ")"
+        text0 = self.font.render(label0, True, (0, 100, 50))
+        text1 = self.font.render(label1, True, (0, 100, 50))
+        self.screen.blit(text0, xy0)
+        self.screen.blit(text1, xy1)
 
     def find_on_line(self, point1, point2, angle3):
-        cond1 = self.is_in_quadrant(point1[self.phi], 2) and self.is_in_quadrant(point2[self.phi], 3) and self.is_in_quadrant(angle3, 2)
-        cond2 = self.is_in_quadrant(point1[self.phi], 3) and self.is_in_quadrant(point2[self.phi], 2) and self.is_in_quadrant(angle3, 3)
+        angle1 = point1[self.phi] + self.explorer.rotation
+        angle2 = point2[self.phi] + self.explorer.rotation
+        angle3 += self.explorer.rotation
+
+        cond1 = self.is_in_quadrant(angle1, 2) and self.is_in_quadrant(angle2, 3) and self.is_in_quadrant(angle3, 2)
+        cond2 = self.is_in_quadrant(angle1, 3) and self.is_in_quadrant(angle2, 2) and self.is_in_quadrant(angle3, 3)
         if cond1 or cond2:
-            dummy = point1
-            point1 = point2
-            point2 = dummy
-        a = point1[0]
-        b = point2[0]
-        gamma = math.radians(abs(point1[self.phi] - point2[self.phi]))
-        gamma_bc = math.radians(abs(angle3 - point2[self.phi]))
+            dummy = angle1
+            angle1 = angle2
+            angle2 = dummy
+            a = point2[self.r]
+            b = point1[self.r]
+        else:
+            a = point1[self.r]
+            b = point2[self.r]
+        gamma = math.radians(abs(angle1 - angle2))
+        gamma_bc = math.radians(abs(angle3 - angle2))
 
         c = math.sqrt(a ** 2 + b ** 2 - 2 * a * b * math.cos(gamma))
         alpha = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
         distance = math.sin(alpha) * b / math.sin(math.pi - alpha - gamma_bc)
-        return np.array([distance, angle3])
+        return np.array([distance, (angle3-self.explorer.rotation)])
 
 # -------------------------- SOME NUMERICAL OPERATIONS ----------------------------
 
@@ -196,12 +222,13 @@ class Rendering3D(Rendering):
         x, y = point
         player_x, player_y = self.explorer.pos
         r = np.hypot(x - player_x, y - player_y)
-        phi = np.degrees(np.arctan2(y - player_y, x - player_x))
+        phi = np.degrees(np.arctan2(y - player_y, x - player_x)) - self.explorer.rotation
+        phi = (phi+180) % 360 - 180
         return np.array([r, phi])
 
     def to_cartesian(self, point):
         r, phi = point
-        phi_rad = np.radians(phi)
+        phi_rad = np.radians(phi + self.explorer.rotation)
         x = r * np.cos(phi_rad)
         y = r * np.sin(phi_rad)
         return np.array([x, y])
@@ -212,12 +239,14 @@ class Rendering3D(Rendering):
         return lower_limit < (angle % 360) < upper_limit
 
     def angle_to_column(self, angle):
-        left_edge = self.explorer.rotation + config.camera_span[0]//2
-        right_edge = self.explorer.rotation - config.camera_span[0]//2
-        if right_edge > angle or angle > left_edge:
-            raise ValueError("Angle outside visible span!")
+        left_edge = config.camera_span[0]//2
+        right_edge = -config.camera_span[0]//2
 
-        return (left_edge - angle) * self.SCREEN_SIZE[0] // config.camera_span[0]
+        col = (left_edge - angle) * self.SCREEN_SIZE[0] / config.camera_span[0]
+        if angle > left_edge or right_edge > angle:
+            message = "Warning! Angle ", angle, "outside visible span [", left_edge, ", ", right_edge, "]!"
+            #raise ValueError(message)
+        return round(col)
 
     def get_vertical_points(self, column, distance):
         if column < 0 or column > self.SCREEN_SIZE[0]:

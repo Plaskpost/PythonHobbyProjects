@@ -43,7 +43,7 @@ class Rendering2D(Rendering):
         self.write_debug_info()
         pygame.display.flip()
         pygame.display.update()
-        time.sleep(0.01)
+
 
     def update_recursive(self, tile, prev_tile, screen_position):
         if tile not in self.maze.visible_tiles or tile in self.drawn_tiles:

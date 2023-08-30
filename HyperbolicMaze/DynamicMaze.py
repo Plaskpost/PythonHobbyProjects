@@ -48,9 +48,15 @@ class DynamicMaze:
         if neighbor not in self.adjacency_map:  # Always add the tile behind the observed border.
             self.register_tile(neighbor)
 
-        if np.random.random() < prob:
-            self.wall_map[tile][global_index] = -1
-            self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = -1
-        else:
-            self.wall_map[tile][global_index] = 1
-            self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = 1
+        try:
+            if np.random.random() < prob:
+                self.wall_map[tile][global_index] = -1
+                self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = -1
+            else:
+                self.wall_map[tile][global_index] = 1
+                self.wall_map[neighbor][self.adjacency_map[neighbor].index(tile)] = 1
+        except KeyError:
+            print("Full adjacency map:")
+            for name, adjacents in self.adjacency_map.items():
+                print(name, ":", adjacents)
+            raise RuntimeError

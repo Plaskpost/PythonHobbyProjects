@@ -89,6 +89,9 @@ class Player(Explorer):
             if self.rotation < 0:
                 self.rotation += 360
 
+    def get_facing(self):
+        return ((round(self.rotation)-225) % 360)//90
+
 
 class Ray(Explorer):
 
@@ -165,8 +168,11 @@ class Ray(Explorer):
             # Check if we hit a wall.
             global_border_hit = self.global_index_to(local_border_hit)  # Why ray is a separate object.
             if maze.check_wall_with_placement(self.pos_tile, global_border_hit):  # True if wall.
-                wall_reductions = np.abs(np.array([wall_thickness / cos_r, wall_thickness / sin_r]))
-                distance -= wall_reductions[dimension_hit]
+                try:
+                    wall_reductions = np.abs(np.array([wall_thickness / cos_r, wall_thickness / sin_r]))
+                    distance -= wall_reductions[dimension_hit]
+                except ZeroDivisionError:
+                    print("Not doing a proper bug catcher here lol.")
                 break  # Break loop when wall is hit.
 
             # Check if we hit one of our walls in the corner.

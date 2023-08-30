@@ -98,3 +98,10 @@ Left corner order:
 [inner, outer, limit]: 0
 [outer, limit, inner]: 0
 [outer, inner, limit]: 0
+
+
+Facing direction:
+45-135: 2
+135-225: 3
+225-315: 0
+315-45: 1
