@@ -1,11 +1,11 @@
 import numpy as np
-from scipy.signal import convolve2d
+
 import pygame
 import sys
 from GameOfLife import GameOfLife
 
 # Create a sample NxN matrix and a 3x3 kernel
-N = 20
+N = 50
 
 # Initialize Pygame
 pygame.init()
@@ -14,7 +14,7 @@ gol = GameOfLife(N)
 # Constants
 SCREEN_SIZE = (400, 400)
 SQUARE_SIZE = SCREEN_SIZE[0] // N
-LOOPS_PER_TICK = 10
+LOOPS_PER_TICK = 20
 
 # Colors
 WHITE = (255, 255, 255)
@@ -59,10 +59,14 @@ while running:
             color = WHITE if gol.board[row][col] else BLACK
             pygame.draw.rect(screen, color, (col * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
 
+    for square in marked_squares:
+        pygame.draw.rect(screen, WHITE, (square[1] * SQUARE_SIZE, square[0] * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
+
     pygame.display.flip()
     loop_counter += 1
     if loop_counter == LOOPS_PER_TICK:
         gol.tick()
+        loop_counter = 0
 
 # Clean up
 pygame.quit()
