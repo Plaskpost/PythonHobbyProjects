@@ -4,11 +4,11 @@ import time
 import numpy as np
 import pygame.display
 import config
-
 from Rendering import Rendering
 
 
 class Rendering3D(Rendering):
+    # Index names
     r = 0
     phi = 1
     right = 0
@@ -57,7 +57,17 @@ class Rendering3D(Rendering):
                                   journey=np.array([0, 0]))
 
     def draw_walls_recursive(self, probe, prev, left_angle_limit, right_angle_limit, wall_segment, journey):
-
+        """
+        :param probe: An Explorer object that properly traverses the maze in search for visible walls.
+        :param prev: Local index to the probe's previously visited tile (initially set to tile behind payer based on facing).
+        :param left_angle_limit: Local angle (facing = 0). We can't se any part of the current tile with relative angle
+        higher than left_angle_limit.
+        :param right_angle_limit: We can't se any part of the current tile with relative angle lower than right_angle_limit.
+        :param wall_segment: [[distance_0, angle_0], [distance_1, angle_1]]. The variable that tracks one straight wall
+        at a time, with 0 indexing the left edge of the wall and 1 indexing the right edge.
+        :param journey: The probe's relative position to the player in cartesian coordinates.
+        :return:
+        """
         for i in range(1, 4):
             local_index = (i + prev) % 4
             global_index = probe.global_index_to(local_index)
@@ -65,10 +75,16 @@ class Rendering3D(Rendering):
 
             # Find the far (ahead in rotation) inner corner.
             inner_left = self.to_polar(self.inner_corners[local_index] + journey)
+            # Adjusting for an angle computation error that can happen in the player's tile
+            if probe.pos_tile == self.explorer.pos_tile and i == 3:
+                # The angle to this corner can't be positive for the wall to the left of the player (i = 3).
+                if inner_left[self.phi] < 0.:
+                    inner_left[self.phi] += 360.
 
             # Debug stop
+            a = 0
             #if self.explorer.pos_tile == "" and self.explorer.global_index_to_previous_tile == 2:
-            #    self.print_debug_info(probe.pos_tile, i, wall_segment, (left_angle_limit, right_angle_limit), inner_left)
+            #   self.print_debug_info(probe.pos_tile, i, wall_segment, (left_angle_limit, right_angle_limit), inner_left)
 
             # Make a cut in the corner behind if it is an inner or outer corner.
             if not (wall_here ^ self.maze.check_wall_with_placement(probe.pos_tile, (global_index-1) % 4)) and not self.wall_cut:
@@ -89,10 +105,23 @@ class Rendering3D(Rendering):
                 extra_step = self.outer_corners[local_index][self.left] - self.inner_corners[local_index]
                 inner_right = self.to_polar(self.inner_corners[(local_index - 1) % 4] + journey)
                 outer_right = self.to_polar(self.outer_corners[local_index][self.right] + extra_step + journey)
+                outer_left = self.to_polar(self.outer_corners[local_index][self.left] + extra_step + journey)
+                # Adjusting for potential angle computation error
+                if probe.pos_tile == self.explorer.pos_tile:
+                    if i == 1:
+                        # The angle to these corners can't be positive for the wall to the left of the player (i = 1).
+                        if inner_right[self.phi] > 0.:
+                            inner_right[self.phi] -= 360.
+                        if outer_right[self.phi] > 0.:
+                            outer_right[self.phi] -= 360.
+                    if i == 3:
+                        # The angle to this corner can't be positive for the wall to the left of the player (i = 3).
+                        if outer_left[self.phi] < 0.:
+                            outer_left[self.phi] += 360.
+
                 right_options = np.array([inner_right[self.phi], outer_right[self.phi], right_angle_limit])
                 sorted_right_indices = np.flip(np.argsort(right_options))
 
-                outer_left = self.to_polar(self.outer_corners[local_index][self.left] + extra_step + journey)
                 left_options = np.array([inner_left[self.phi], outer_left[self.phi], left_angle_limit])
                 sorted_left_indices = np.argsort(left_options)
 
@@ -215,6 +244,7 @@ class Rendering3D(Rendering):
         alpha = math.acos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c))
         distance = math.sin(alpha) * b / math.sin(math.pi - alpha - gamma_bc)
         return np.array([distance, (angle3-self.explorer.rotation)])
+
 
 # -------------------------- SOME NUMERICAL OPERATIONS ----------------------------
 

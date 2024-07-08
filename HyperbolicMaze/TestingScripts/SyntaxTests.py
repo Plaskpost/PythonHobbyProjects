@@ -1,7 +1,14 @@
 import math
+import HyperbolicGrid
 
-deg = 100
+neighbors = ['LU', 'UR', 'RD', 'DL', 'UL', 'RU', 'DR', 'LD']
+d = ["D", "R", "U", "L"]
 
-result = (((deg-225) % 360)//90)
+for neighbor in neighbors:
+    direction = HyperbolicGrid.rotation_direction(d, neighbor[0], neighbor[1])
+    print(f"{''.join(neighbor)} : {direction}")
 
-print(result)
+
+del neighbors[1]
+
+print(neighbors)

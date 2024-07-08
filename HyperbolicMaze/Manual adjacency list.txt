@@ -105,3 +105,16 @@ Facing direction:
 135-225: 3
 225-315: 0
 315-45: 1
+
+
+Twisting direction:
+ULD -> LU: -1
+RUL -> UR: -1
+DRU -> RD: -1
+LDR -> DL: -1
+LUR -> UL: 1
+URD -> RU: 1
+RDL -> DR: 1
+DLU -> LD: 1
+
+
