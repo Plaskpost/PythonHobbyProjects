@@ -1,12 +1,14 @@
-import numpy as np
+import math
+import HyperbolicGrid
 
-a = np.array([0.9, 0.4])
-c = np.array([4, 2])
-b = np.minimum(a, 1-a)
+neighbors = ['LU', 'UR', 'RD', 'DL', 'UL', 'RU', 'DR', 'LD']
+d = ["D", "R", "U", "L"]
 
-print(b)
+for neighbor in neighbors:
+    direction = HyperbolicGrid.rotation_direction(d, neighbor[0], neighbor[1])
+    print(f"{''.join(neighbor)} : {direction}")
 
-result = np.argmin([a, 1-a], axis=0)
 
-print(result)
-print()
+del neighbors[1]
+
+print(neighbors)

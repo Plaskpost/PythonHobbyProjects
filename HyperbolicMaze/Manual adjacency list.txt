@@ -77,6 +77,44 @@ Oneliner for local border index:
 Wall corner check with all other variables known:
 Inner confirmed: dim = x/0 -> local_border = 0,   dim = y/1 -> local_border = 3
 Outer confirmed: dim = x/0 -> local_border = 2,   dim = y/1 -> local_border = 1
-
 Rotation increase: y_top-under, x_bottom-under, y_bottom-over, x_top-over
 Rotation decrease: y_top-over, x_bottom-over, y_bottom-under, x_top-under
+
+How to find the right corner:
+Inner options: [[1-w, w], [1-w, 1-w], [w, 1-w], [w, w]]
+Outer options: [[[w, 0], [1-w, 0]], [[1, w], [1, 1-w]], [[1-w, 1], [w, 1]], [[0, 1-w], [0, w]]]
+
+1st index: i + previous, where previous is the local index of the direction we came from (opposite of direction stepped).
+2nd: 0 before recursion, 1 after. Special case: 1 before for loop, 0 after.
+
+Which angles are correct: (-180, 180]
+a > c > b > a-180: 1
+Assuming the point c is always in [a, b] or [b, a], the only error occurs when phi_a > 0, phi_b < 0, phi_c < 0.
+
+Left corner order:
+[limit, inner, outer]: 1
+[limit, outer, inner]: 0
+[inner, limit, outer]: 1
+[inner, outer, limit]: 0
+[outer, limit, inner]: 0
+[outer, inner, limit]: 0
+
+
+Facing direction:
+45-135: 2
+135-225: 3
+225-315: 0
+315-45: 1
+
+
+Twisting direction:
+ULD -> LU: -1
+RUL -> UR: -1
+DRU -> RD: -1
+LDR -> DL: -1
+LUR -> UL: 1
+URD -> RU: 1
+RDL -> DR: 1
+DLU -> LD: 1
+
+
