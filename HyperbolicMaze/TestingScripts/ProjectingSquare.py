@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     #pygame.draw.lines(screen, (255, 255, 255), True, mapped_line)
 
-    background_image = pygame.image.load('Images/Yellow_grid_image.png')
+    background_image = pygame.image.load('../Images/Yellow_grid_image.png')
     background_image = pygame.transform.scale(background_image, window_size)
 
     running = True

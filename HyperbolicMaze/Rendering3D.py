@@ -281,11 +281,16 @@ class Rendering3D(Rendering):
     def get_vertical_points(self, column, distance):
         if column < 0 or column > self.SCREEN_SIZE[0]:
             raise ValueError("Column value ", column, " outside range!")
-        line_length = np.round(self.vertical_scale/max(distance, 0.001)).astype(int)
-        start = self.camera_shift + (self.SCREEN_SIZE[1] - line_length) // 2
-        end = self.camera_shift + (self.SCREEN_SIZE[1] + line_length) // 2
+
+        line_height = self.vertical_height(distance)
+        start = self.camera_shift + (self.SCREEN_SIZE[1] - line_height) // 2
+        end = self.camera_shift + (self.SCREEN_SIZE[1] + line_height) // 2
 
         return (column, start), (column, end)
+
+    def vertical_height(self, distance):
+        return np.round(self.vertical_scale/max(distance, 0.001)).astype(int)
+
 
     def col_invert(self, col):
         return self.SCREEN_SIZE[0]-1 - col

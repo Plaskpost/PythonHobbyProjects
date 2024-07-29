@@ -39,6 +39,10 @@ def test_iterative_registration():
     reduced_key = HyperbolicGrid.iterative_reduction(key, am)
     assert reduced_key == "ULU"
 
+    key = "RDL"
+    reduced_key = HyperbolicGrid.iterative_reduction(key, am)
+    assert reduced_key == "DR"
+
 
 
 if __name__ == '__main__':

@@ -1,66 +1,49 @@
-import pygame
-import sys
-import cmath
+import numpy as np
+import matplotlib.pyplot as plt
 
-# Initialize Pygame
-pygame.init()
+import MiniMap
 
-# Constants
-WIDTH, HEIGHT = 800, 800
-WHITE = (255, 255, 255)
-POINT_RADIUS = 10
-TRANSLATION_SPEED = 0.00001  # Adjust the translation speed as needed
 
-# Initialize the screen
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Hyperbolic Point Translation")
+def plot_circle(center, radius):
+    theta = np.linspace(0, 2 * np.pi, 100)
+    x_circle = center[0] + radius * np.cos(theta)
+    y_circle = center[1] + radius * np.sin(theta)
+    ax.plot(x_circle, y_circle, 'g--', alpha=0.5)
 
-# Define the initial point in the Poincaré disk
-point = complex(0.0, 0.0)  # Adjust the initial point as needed
 
-# Main game loop
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+# Parameters
+p = np.array([0.1, 0.2])
+N = np.array([0.6, 0.8])
+d = 0.2
+iterations = 10
 
-    # Check for arrow key presses
-    keys = pygame.key.get_pressed()
+fig, ax = plt.subplots()
+circle = plt.Circle((0, 0), 1, color='black', fill=False)
+ax.add_artist(circle)
 
-    # Apply a Möbius transformation to move the point along a hyperbolic geodesic
-    if keys[pygame.K_LEFT]:
-        b = complex(-1.0, 0.0)
-    elif keys[pygame.K_RIGHT]:
-        b = complex(1.0, 0.0)
-    elif keys[pygame.K_DOWN]:
-        b = complex(0.0, -1.0)
-    elif keys[pygame.K_UP]:
-        b = complex(0.0, 1.0)
-    else:
-        b = complex(0.0, 0.0)
+ax.plot(p[0], p[1], 'bo')
 
-    # Apply the Möbius transformation for hyperbolic translation
-    point = (point - b) / (1 - b.conjugate() * point)
+center, radius = MiniMap.find_circle(p, N)
+plot_circle(center, radius)
 
-    # Ensure the point remains within the Poincaré disk
-    if abs(point) >= 1:
-        point /= abs(point)**2
+for _ in range(iterations):
+    new_position, new_normal = translate_along_circle(p, N, center, radius, d)
 
-    # Clear the screen
-    screen.fill(WHITE)
+    theta = np.linspace(0, 2 * np.pi, 100)
+    x_circle = center[0] + radius * np.cos(theta)
+    y_circle = center[1] + radius * np.sin(theta)
+    ax.plot(x_circle, y_circle, 'g--', alpha=0.5)
 
-    # Draw the Poincaré disk boundary
-    pygame.draw.circle(screen, (0, 0, 0), (WIDTH // 2, HEIGHT // 2), WIDTH // 2, 1)
+    ax.plot(new_position[0], new_position[1], 'ro')
 
-    # Draw the translated point in the Poincaré disk
-    translated_x = WIDTH // 2 + int(WIDTH // 2 * point.real)
-    translated_y = HEIGHT // 2 - int(HEIGHT // 2 * point.imag)
-    pygame.draw.circle(screen, (0, 0, 255), (translated_x, translated_y), POINT_RADIUS)
+    p, N = new_position, new_normal
 
-    # Update the screen
-    pygame.display.flip()
+ax.set_xlim(-1.2, 1.2)
+ax.set_ylim(-1.2, 1.2)
+ax.set_aspect('equal')
+ax.set_title('Hyperbolic Translations in the Poincaré Disk')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.grid(True)
+plt.show()
 
-# Quit Pygame
-pygame.quit()
-sys.exit()

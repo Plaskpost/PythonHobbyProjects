@@ -116,7 +116,7 @@ def iterative_reduction(string, adjacency_map):
         no_edits = True
 
         # 2. Any last two letters being opposites ("DU", "UD", "LR", "RL) are removed.
-        for j in range(len(string_list) - 2, 0, -1):
+        for j in range(len(string_list) - 2, -1, -1):
             if check_opposites(string_list[j], string_list[j+1]):
                 del string_list[j+1]
                 del string_list[j]
@@ -124,7 +124,7 @@ def iterative_reduction(string, adjacency_map):
 
         # 3. Whenever the third last letter and the last letter of an element are opposites,
         # the newly added letter is removed and the last two are flipped.
-        for j in range(len(string_list) - 3, 0, -1):
+        for j in range(len(string_list) - 3, -1, -1):
             if check_opposites(string_list[j], string_list[j + 2]):
                 trio_reduction(string_list, j)
                 if j + 1 < len(string_list) - 1:
