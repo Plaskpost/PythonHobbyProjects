@@ -1,14 +1,13 @@
 import math
 import HyperbolicGrid
+from Explorer import Explorer
+import numpy as np
+import MiniMap
 
 neighbors = ['LU', 'UR', 'RD', 'DL', 'UL', 'RU', 'DR', 'LD']
 d = ["D", "R", "U", "L"]
 
-for neighbor in neighbors:
-    direction = HyperbolicGrid.rotation_direction(d, neighbor[0], neighbor[1])
-    print(f"{''.join(neighbor)} : {direction}")
+point = np.array([0., -0.5])
+vector = np.array([-1, -1])
 
-
-del neighbors[1]
-
-print(neighbors)
+print(MiniMap.rotate_vector_towards_origin(point, vector))

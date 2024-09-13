@@ -9,6 +9,9 @@ class Explorer:
     UP = 2
     LEFT = 3
 
+    FORWARD = 2
+    BACKWARDS = 0
+
     x = 0
     y = 1
 
@@ -19,6 +22,12 @@ class Explorer:
         self.local_index_to_previous = local_prev
 
     def global_index_to(self, local_index_to_next_tile):
+        """
+        Converts a local direction index to a global direction index, based on the explorer's trace record.
+
+        :param local_index_to_next_tile:
+        :return:
+        """
         # "The amount of clockwise steps from direction_to_previous to direction_to_next is added to index_to_last."
         return (((local_index_to_next_tile - self.local_index_to_previous) % 4) + self.global_index_to_previous_tile) % 4
 
@@ -40,6 +49,22 @@ class Explorer:
             self.pos[self.x] += config.tile_size
         else:
             raise ValueError("Invalid direction!")
+
+    def directional_tile_step(self, maze, brfl):
+        """
+        Transfers tile in a direction relative to where the explorer came from.
+
+        :param maze: DynamicMaze object.
+        :param brfl: 0 = BACK, 1 = RIGHT, 2 = FORWARD, 3 = LEFT. Direction to move.
+        :return:
+        """
+        local_index_to_new = (self.local_index_to_previous + brfl) % 4
+        global_index_to_new = self.global_index_to(local_index_to_new)
+        if maze.adjacency_map[maze.adjacency_map[self.pos_tile][global_index_to_new]] is None:
+            return False
+
+        self.transfer_tile(maze, global_index_to_new, local_index_to_new)
+        return True
 
     def opposite_of(self, direction):
         return (direction + 2) % 4

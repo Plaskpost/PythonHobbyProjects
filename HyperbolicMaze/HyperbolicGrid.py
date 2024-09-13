@@ -33,7 +33,7 @@ def quad_partner(s):
 
 
 def quad_partner_in_keys(s, adjacency_map):
-    return len(s) >= 4 and check_opposites(s[-1], s[-4]) and s[-2] == s[-3] and quad_partner(s) in adjacency_map and adjacency_map[quad_partner(s)] is not None
+    return len(s) >= 4 and check_opposites(s[-1], s[-4]) and s[-2] == s[-3] and quad_partner(s) in adjacency_map
 
 
 # Main function in this context
@@ -69,7 +69,9 @@ def register_tile(key, adjacency_map):
     # 4. If the last letter and the fourth last letter are opposites, the entry stays unless
     # the same string with a specific quadruple at the end is included in the list according to the following pairs:
     for i in range(4):
-        if quad_partner_in_keys(neighbors[i], adjacency_map) and not check_opposites(key[-1], d[i]):
+        c1 = quad_partner_in_keys(neighbors[i], adjacency_map)
+        c2 = check_opposites(key[-1], d[i])
+        if c1 and not c2:
             neighbors[i] = quad_partner(neighbors[i])
 
     # Add the results
@@ -110,6 +112,7 @@ def iterative_registration(key, adjacency_map):
 
 
 def iterative_reduction(string, adjacency_map):
+
     string_list = [letter for letter in string]
     no_edits = False
     while not no_edits:
@@ -134,8 +137,8 @@ def iterative_reduction(string, adjacency_map):
                 break
 
         # 4. If the last letter and the fourth last letter are opposites, the entry stays unless
-        # the same string with a specific quadruple at the end is included in the list according to the following pairs:
-        for j in range(len(string_list), 4, -1):
+        # the same string with a specific quadruple at the end is included in the list.
+        for j in range(len(string_list), 3, -1):
             current_prefix = ''.join(string_list[:j])
             if quad_partner_in_keys(current_prefix, adjacency_map):
                 new_prefix = quad_partner(current_prefix)
@@ -153,7 +156,7 @@ def bulk_registration(adjacency_map, origin, radius):
     while queue:
         current, distance = queue.popleft()
 
-        register_tile(current, adjacency_map)
+        iterative_registration(current, adjacency_map)
 
         if distance < radius:
             for neighbor in adjacency_map[current]:

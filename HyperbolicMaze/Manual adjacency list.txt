@@ -118,3 +118,9 @@ RDL -> DR: 1
 DLU -> LD: 1
 
 
+Circle turns:
+dot     turn    translation
++       right   -
++       left    +
+-       right   +
+-       left    -

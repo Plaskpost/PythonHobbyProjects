@@ -15,7 +15,7 @@ def run_game():
     if config.fixed_seed:
         np.random.seed(config.seed)
     explorer = Player()
-    maze = DynamicMaze(explorer.pos_tile)
+    maze = DynamicMaze()
     renderer = Rendering3D(maze, explorer)
     renderer.update()
 

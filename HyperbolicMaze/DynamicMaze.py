@@ -5,7 +5,7 @@ import config
 
 class DynamicMaze:
 
-    def __init__(self, pos):
+    def __init__(self):
         self.adjacency_map = {"": None}
         self.wall_map = {"": None}  # 1: passable, -1: wall, 0: unexplored
 
@@ -14,8 +14,8 @@ class DynamicMaze:
         self.wall_map = self.initialize_wall_map()
 
         self.visible_tiles = set()  # Set of visible tiles
-        self.register_tile(pos)
-        self.make_walls(pos)
+        self.register_tile("")
+        self.make_walls("")
 
 
     def register_tile(self, tile):
