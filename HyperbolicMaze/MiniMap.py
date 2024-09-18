@@ -1,5 +1,5 @@
 import math
-
+from collections import deque
 import pygame
 import sys
 import numpy as np
@@ -20,97 +20,114 @@ class MiniMap:
         self.tile_size = size_on_screen // 5
         self.exploration_directions = [Explorer.FORWARD, Explorer.RIGHT, Explorer.LEFT]
 
-        self.d = 0.01
+        self.d = 0.1
         self.visible_range = 0.99
 
-        pygame.draw.circle(screen, self.WHITE, screen_placement, size_on_screen//2, 1)
-
+        pygame.draw.circle(screen, self.WHITE, screen_placement, size_on_screen // 2, 1)
 
     def display_map(self):
         steps = self.find_steps()
         for step in steps:
             self.draw_step(step)
 
-
-    def find_steps(self, maze, explorer):
+    def find_all_steps(self, maze, explorer):
         all_steps = []
         visited = set()
+
         probe = explorer.__copy__()
 
         point = np.array([0.1, 0.])
         normal = np.array([-1., 0.])
-        forward_vec = np.array([0., 1.])
+        facing_angle = np.pi / 2.
         circle = find_circle(point, normal)
 
-        self.find_steps_recursive(maze, probe, all_steps, visited, circle, point, -1, forward_vec)
+        queue = deque([[probe, maze, all_steps, visited, circle, point, -1, facing_angle]])
+
+        while queue:
+            tile_pack = queue.popleft()
+            self.find_tile_specific_steps(queue, *tile_pack)
 
         return all_steps
 
-    def find_steps_recursive(self, maze, probe, all_steps, visited, current_circle, projection_coord,
-                             translation_direction, facing_angle):
+    def find_tile_specific_steps(self, queue, probe, maze, all_steps, visited, current_circle, projection_coord,
+                                 circular_direction, facing_angle):
         """
+        Loops through three of the tile's neighbors in order: forward, right, left (previous tile as reference), finds
+        the coordinated of the blocks to draw and adds neighboring tiles to the queue.
 
-        :param maze:
-        :param probe:
+        :param queue: Queue with argument lists as elements that lines up the tiles to be searched in BFS order.
+        :param maze: DynamicMaze object.
+        :param probe: Explorer object to maintain correct orientation in the maze
         :param all_steps: A set of steps (point1, point2) to save all the visible steps (tile->tile).
         :param current_circle: (center, radius). Circle along which the probe is currently searching.
         :param visited: A set of visited tiles.
         :param projection_coord:
         :type projection_coord: numpy.ndarray
-        :param translation_direction: Which way is forward on the current circle. 1 for counter-clockwise and -1 for clockwise.
+        :param circular_direction: Which way is forward on the current circle. 1 for counter-clockwise and -1 for clockwise.
         :param facing_angle: Angle of the direction forward along the current circle arc.
         :return:
         """
 
+        print(f"Exploring {probe.pos_tile}")
+        if probe.pos_tile == 'U':
+            a = 0
         visited.add(probe.pos_tile)
 
         # Find the circle perpendicular to the current one
-        current_normal = find_normal(projection_coord, current_circle)  # TODO: Might move this function call to later stage and use forward vector?
+        current_normal = find_normal(projection_coord, current_circle)
         perpendicular_normal = rotate_normal(projection_coord, current_normal)
         perpendicular_circle = find_circle(projection_coord, perpendicular_normal)
 
-        translation_direction_ahead = translation_direction
         circle = current_circle
 
         for exploration_direction in self.exploration_directions:
             probe_ahead = probe.__copy__()
             if not probe_ahead.directional_tile_step(maze, exploration_direction):
-                continue
+                continue  # Skip any step towards a tile that hasn't been generated in the maze.
+
             if exploration_direction == Explorer.FORWARD:
-                # Find next point forward
+                # Continue the translation forward without finding new circle and all that.
                 distance = get_step_distance(projection_coord, facing_angle, self.d)
-                projection_coord_ahead = translate_along_circle(projection_coord, circle, distance)
+                projection_coord_ahead, translation_angle = translate_along_circle(projection_coord, circle, circular_direction*distance)
+
             else:  # If we're turning to a sideways direction
-                if exploration_direction == Explorer.RIGHT:
-                    facing_angle -= np.pi/2
-                elif exploration_direction == Explorer.RIGHT:
-                    facing_angle += np.pi  # Adding half a lap as this angle was the other way around in the last loop
-
                 circle = perpendicular_circle
-                point_to_c_vector = np.array(circle[0]) - projection_coord  # Is chatgpt's approach really fastest?
-                translation_direction_ahead = np.dot(forward_vector, perpendicular_normal)
-                translation_direction_ahead *= (exploration_direction - 2)
-                translation_direction_ahead = np.sign(translation_direction_ahead)
-                # TODO: Translate 'translation_direction_ahead' to a direction (perpendicular normal or -perpendicular normal).
-                distance = get_step_distance(projection_coord, direction_vector, self.d)
-                distance = translation_direction_ahead * distance  # To make the translate function translate in the right direction.
-                projection_coord_ahead = translate_along_circle(projection_coord, perpendicular_circle, distance)
+                if exploration_direction == Explorer.RIGHT:
+                    facing_angle -= np.pi / 2
+                    # Figure out if we're following this circle clockwise or counter-clockwise
+                    point_to_c_vector = np.array(circle[0]) - projection_coord
+                    facing_vector = to_cartesian((1., facing_angle))
+                    cross_product = np.cross(point_to_c_vector, facing_vector)
+                    circular_direction = np.sign(cross_product)
+                else:  # Left.
+                    facing_angle += np.pi  # Adding half a lap as this angle was the other way around in the last loop.
+                    circular_direction *= -1  # Same here, we re-use the computation from last time.
 
-            # If passable, add to the list of steps
+                # Translate the point along the circle
+                distance = get_step_distance(projection_coord, facing_angle, self.d)
+                projection_coord_ahead, translation_angle = translate_along_circle(projection_coord, perpendicular_circle, circular_direction*distance)
+
+            # If wall passable, add step to the list of all steps.
             if maze.wall_map[probe_ahead.pos_tile][probe_ahead.global_index_to_previous_tile] == 1:  # If passable
                 all_steps.append((projection_coord, projection_coord_ahead))
-                # FOR DEBUGGING
+                # STEP-WISE DRAWING FOR DEBUGGING
                 inverted_circle_center = np.array([circle[0][0], -circle[0][1]])
-                pygame.draw.circle(screen, self.WHITE, self.screen_placement + (self.map_size_on_screen/2.)*inverted_circle_center,  (self.map_size_on_screen/2.)*circle[1], 1)
+                pygame.draw.circle(screen, self.WHITE,
+                                   self.screen_placement + (self.map_size_on_screen / 2.) * inverted_circle_center,
+                                   (self.map_size_on_screen / 2.) * circle[1], 1)
                 self.draw_step((projection_coord, projection_coord_ahead))
-                pygame.time.wait(1000)
+                pygame.time.wait(10)
 
+            # Lastly, add neighbors to queue
             if np.linalg.norm(projection_coord_ahead) < self.visible_range and \
                     maze.wall_map[probe_ahead.pos_tile][probe_ahead.global_index_to_previous_tile] != 0 and \
                     probe_ahead.pos_tile not in visited:
-                # Recursion call
-                self.find_steps_recursive(maze, probe_ahead, all_steps, visited, circle, projection_coord_ahead,
-                                          translation_direction_ahead, forward_step_vector)
+                facing_angle_ahead = facing_angle + translation_angle  # First update the facing angle.
+                queue.append([probe_ahead, maze, all_steps, visited, circle, projection_coord_ahead,
+                               circular_direction, facing_angle_ahead])
+
+
+
 
 
     def draw_step(self, step_vector):
@@ -159,8 +176,9 @@ class MiniMap:
         # FOR DEBUGGING
         pygame.display.flip()
 
-
     def line_width(self, norm):
+        if norm > 1.:
+            raise ValueError("ERROR: Some point has sneaked out from the unit circle!")
         sin = np.sqrt(1 - np.power(norm, 2))
         return sin / 30.
 
@@ -168,21 +186,11 @@ class MiniMap:
 def get_step_distance(point, facing_angle, step_size):
     p_r, p_phi = to_polar(point)
     theta = facing_angle - p_phi
-    acceleration = get_acceleration(p_r, theta)
-    step_distance = step_size * np.exp(-acceleration)
+    dzdr = 2 / (1 - p_r ** 2)
+    acceleration = dzdr * np.cos(theta)
+    step_distance = step_size * np.exp(acceleration)  # Current step function. Let's see how it works.
     return step_distance
 
-
-def get_acceleration(r, theta):
-    """
-    Computes the slope of which the vector (distance r, facing theta) is facing.
-
-    :param r: Distance to the origin.
-    :param theta: Angle away from the line from the origin to the point in question.
-    :return:
-    """
-    dzdr = 2/(1-r**2)
-    return dzdr * np.cos(theta)
 
 
 def translate_along_circle(point, circle, distance):
@@ -212,7 +220,7 @@ def translate_along_circle(point, circle, distance):
         if np.linalg.norm(new_point) >= 1:
             new_point /= np.linalg.norm(new_point) - 1e-10
 
-        return new_point
+        return new_point, 0.
     else:
         # Handle the circular case
         # Convert point and center to complex numbers for easier angle calculation
@@ -223,16 +231,16 @@ def translate_along_circle(point, circle, distance):
         current_angle = np.angle(p_complex - c_complex)
 
         # Calculate the new angle after moving by the given distance
-        new_angle = current_angle + distance * radius
+        translation_angle = current_angle + distance * radius
 
         # Calculate the new point position
-        new_point_complex = c_complex + radius * np.exp(1j * new_angle)
+        new_point_complex = c_complex + radius * np.exp(1j * translation_angle)
         new_point = np.array([new_point_complex.real, new_point_complex.imag])
 
         if np.linalg.norm(new_point) >= 1:
             new_point /= np.linalg.norm(new_point) - 1e-10
 
-        return new_point
+        return new_point, translation_angle
 
 
 def rotate_normal(point, normal):
@@ -269,6 +277,7 @@ def find_normal(point, circle):
 
     return new_normal
 
+
 def find_circle(point, normal):
     """
     Finds a circle that touches the given point within the unit circle and crosses the unit circle at right angles.
@@ -282,7 +291,7 @@ def find_circle(point, normal):
     if np.linalg.norm(point) >= 1:
         raise ValueError(f"ERROR: The point must be within the unit circle. {point} is an invalid location.")
 
-    #normal = normal / np.linalg.norm(normal)  # Normalize the normal vector
+    # normal = normal / np.linalg.norm(normal)  # Normalize the normal vector
 
     # Calculate the denominator
     denominator = 2 * np.dot(point, normal)
@@ -319,13 +328,16 @@ def find_circle(point, normal):
 
 def to_polar(p_cartesian):
     x, y = p_cartesian
-    r = np.sqrt(x**2 + y**2)
+    r = np.sqrt(x ** 2 + y ** 2)
     phi = np.arctan2(y, x)
-    return r, phi
+    return np.array([r, phi])
 
 
-
-
+def to_cartesian(p_polar):
+    r, phi = p_polar
+    x = r * np.cos(phi)
+    y = r * np.sin(phi)
+    return np.array([x, y])
 
 
 # ------------------- TESTING THE MAP ---------------------
@@ -336,7 +348,7 @@ if __name__ == '__main__':
     mini_map = MiniMap(screen, (300, 300), 600)
 
     maze = DynamicMaze.DynamicMaze()
-    HyperbolicGrid.bulk_registration(maze.adjacency_map, "", 3)
+    HyperbolicGrid.bulk_registration(maze.adjacency_map, "", 2)
     for key in maze.adjacency_map:
         if maze.adjacency_map[key] is not None:
             maze.wall_map[key] = [1, 1, 1, 1]  # Making a map with no walls
@@ -350,6 +362,6 @@ if __name__ == '__main__':
                 pygame.quit()
                 sys.exit()
 
-        mini_map.find_steps(maze, explorer)
+        mini_map.find_all_steps(maze, explorer)
 
         pygame.display.flip()

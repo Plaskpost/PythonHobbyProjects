@@ -10,4 +10,10 @@ d = ["D", "R", "U", "L"]
 point = np.array([0., -0.5])
 vector = np.array([-1, -1])
 
-print(MiniMap.rotate_vector_towards_origin(point, vector))
+
+def test_function(o, a, b, c, d):
+    print(f"received {o} {a} {b} {c} {d}")
+
+
+test_function('Z', *d)
+

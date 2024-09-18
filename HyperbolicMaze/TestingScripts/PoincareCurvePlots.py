@@ -20,20 +20,22 @@ def scaled_center(center):
 def scaled_radius(radius):
     return (SCREEN_SIZE // 2) * radius
 
-def draw_five_circles():
+def draw_n_circles(n):
     new_point = point.__copy__()
     pygame.draw.circle(screen, RED, scaled_center(new_point), 5)
     circle = MiniMap.find_circle(point, normal)
-    for i in range(5):
+    for i in range(n):
+        new_normal = MiniMap.find_normal(new_point, circle)
+        _, angle = MiniMap.to_polar(new_normal)
+        facing_angle = angle - np.pi/2
 
-        radius = circle[1]
-        angle = -bar_value / radius
-        new_point = MiniMap.translate_along_circle(new_point, circle, angle)
+        distance = MiniMap.get_step_distance(point, facing_angle, bar_value)
+        new_point, _ = MiniMap.translate_along_circle(new_point, circle, -distance)
 
         pygame.draw.circle(screen, WHITE, scaled_center(circle[0]), scaled_radius(circle[1]), 1)
         pygame.draw.circle(screen, RED, scaled_center(new_point), 5)
 
-        new_normal = MiniMap.find_normal(new_point, circle)
+
         perpendicular_normal = MiniMap.rotate_normal(new_point, new_normal)
         circle = MiniMap.find_circle(new_point, perpendicular_normal)
 
@@ -72,8 +74,10 @@ if __name__ == '__main__':
     handle_radius = 10
 
     # Bar values
-    bar_value = 0.3
-    max_value = 2.0
+    bar_value = 0.01
+    max_value = 0.6
+
+    n = 3
 
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
@@ -102,7 +106,7 @@ if __name__ == '__main__':
 
         screen.fill(BLACK)
         pygame.draw.circle(screen, WHITE, (SCREEN_SIZE // 2, SCREEN_SIZE // 2), SCREEN_SIZE // 2, 2)
-        draw_five_circles()
+        draw_n_circles(n)
         draw_slider()
 
         # Update the display

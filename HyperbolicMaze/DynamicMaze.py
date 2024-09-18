@@ -1,4 +1,6 @@
 import numpy as np
+
+import Explorer
 import HyperbolicGrid
 import config
 
@@ -95,4 +97,17 @@ class DynamicMaze:
             wall_map[tile] = [0, 0, 0, 0]
 
         return wall_map
+
+
+def get_empty_map(num_layers):
+    maze = DynamicMaze()
+    HyperbolicGrid.bulk_registration(maze.adjacency_map, "", num_layers)
+    for key in maze.adjacency_map:
+        if maze.adjacency_map[key] is not None:
+            maze.wall_map[key] = [1, 1, 1, 1]  # Making a map with no walls
+
+    explorer = Explorer.Player()
+
+    return maze, explorer
+
 
