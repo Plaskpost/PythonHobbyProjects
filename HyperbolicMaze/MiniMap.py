@@ -6,6 +6,7 @@ import numpy as np
 
 import DynamicMaze
 import HyperbolicGrid
+import TrainingDataGenerator
 from Explorer import Explorer
 from Explorer import Player
 
@@ -41,7 +42,7 @@ class MiniMap:
         facing_angle = np.pi / 2.
         circle = find_circle(point, normal)
 
-        queue = deque([[probe, maze, all_steps, visited, circle, point, -1, facing_angle]])
+        queue = deque([[probe, maze, all_steps, visited, circle, point, -1, facing_angle, '']])
 
         while queue:
             tile_pack = queue.popleft()
@@ -50,7 +51,7 @@ class MiniMap:
         return all_steps
 
     def find_tile_specific_steps(self, queue, probe, maze, all_steps, visited, current_circle, projection_coord,
-                                 circular_direction, facing_angle):
+                                 circular_direction, facing_angle, relative_journey):
         """
         Loops through three of the tile's neighbors in order: forward, right, left (previous tile as reference), finds
         the coordinated of the blocks to draw and adds neighboring tiles to the queue.
@@ -58,19 +59,19 @@ class MiniMap:
         :param queue: Queue with argument lists as elements that lines up the tiles to be searched in BFS order.
         :param maze: DynamicMaze object.
         :param probe: Explorer object to maintain correct orientation in the maze
-        :param all_steps: A set of steps (point1, point2) to save all the visible steps (tile->tile).
+        :param all_steps: Now rather a dict of relative_journey: position_coord.
         :param current_circle: (center, radius). Circle along which the probe is currently searching.
         :param visited: A set of visited tiles.
         :param projection_coord:
         :type projection_coord: numpy.ndarray
         :param circular_direction: Which way is forward on the current circle. 1 for counter-clockwise and -1 for clockwise.
         :param facing_angle: Angle of the direction forward along the current circle arc.
+        :param relative_journey: A string of letters (B, R, F, L) that tells how the probe has traversed.
         :return:
         """
 
         print(f"Exploring {probe.pos_tile}")
-        if probe.pos_tile == 'U':
-            a = 0
+        all_steps[relative_journey] = projection_coord
         visited.add(probe.pos_tile)
 
         # Find the circle perpendicular to the current one
@@ -85,12 +86,8 @@ class MiniMap:
             if not probe_ahead.directional_tile_step(maze, exploration_direction):
                 continue  # Skip any step towards a tile that hasn't been generated in the maze.
 
-            if exploration_direction == Explorer.FORWARD:
-                # Continue the translation forward without finding new circle and all that.
-                distance = get_step_distance(projection_coord, facing_angle, self.d)
-                projection_coord_ahead, translation_angle = translate_along_circle(projection_coord, circle, circular_direction*distance)
-
-            else:  # If we're turning to a sideways direction
+            # Make changes if we're turning to a sideways direction
+            if exploration_direction == Explorer.RIGHT or exploration_direction == explorer.LEFT:
                 circle = perpendicular_circle
                 if exploration_direction == Explorer.RIGHT:
                     facing_angle -= np.pi / 2
@@ -103,28 +100,30 @@ class MiniMap:
                     facing_angle += np.pi  # Adding half a lap as this angle was the other way around in the last loop.
                     circular_direction *= -1  # Same here, we re-use the computation from last time.
 
-                # Translate the point along the circle
-                distance = get_step_distance(projection_coord, facing_angle, self.d)
-                projection_coord_ahead, translation_angle = translate_along_circle(projection_coord, perpendicular_circle, circular_direction*distance)
+            # Translate the point along the circle
+            angle = TrainingDataGenerator.brute_guessing_p2(projection_coord, circle, facing_angle, self.d)
+            distance = angle * circle[1]
+            projection_coord_ahead, translation_angle = translate_along_circle(projection_coord, circle, circular_direction*distance)
 
             # If wall passable, add step to the list of all steps.
-            if maze.wall_map[probe_ahead.pos_tile][probe_ahead.global_index_to_previous_tile] == 1:  # If passable
-                all_steps.append((projection_coord, projection_coord_ahead))
-                # STEP-WISE DRAWING FOR DEBUGGING
-                inverted_circle_center = np.array([circle[0][0], -circle[0][1]])
-                pygame.draw.circle(screen, self.WHITE,
-                                   self.screen_placement + (self.map_size_on_screen / 2.) * inverted_circle_center,
-                                   (self.map_size_on_screen / 2.) * circle[1], 1)
-                self.draw_step((projection_coord, projection_coord_ahead))
-                pygame.time.wait(10)
+            #if maze.wall_map[probe_ahead.pos_tile][probe_ahead.global_index_to_previous_tile] == 1:  # If passable
+            #    all_steps.append((projection_coord, projection_coord_ahead))
+            #    # STEP-WISE DRAWING FOR DEBUGGING
+            #    inverted_circle_center = np.array([circle[0][0], -circle[0][1]])
+            #    pygame.draw.circle(screen, self.WHITE,
+            #                       self.screen_placement + (self.map_size_on_screen / 2.) * inverted_circle_center,
+            #                       (self.map_size_on_screen / 2.) * circle[1], 1)
+            #    self.draw_step((projection_coord, projection_coord_ahead))
+            #    pygame.time.wait(10)
 
             # Lastly, add neighbors to queue
             if np.linalg.norm(projection_coord_ahead) < self.visible_range and \
                     maze.wall_map[probe_ahead.pos_tile][probe_ahead.global_index_to_previous_tile] != 0 and \
                     probe_ahead.pos_tile not in visited:
                 facing_angle_ahead = facing_angle + translation_angle  # First update the facing angle.
+                relative_journey_ahead = relative_journey + Explorer.relative_directions[exploration_direction]
                 queue.append([probe_ahead, maze, all_steps, visited, circle, projection_coord_ahead,
-                               circular_direction, facing_angle_ahead])
+                              circular_direction, facing_angle_ahead, relative_journey_ahead])
 
 
 
@@ -176,6 +175,7 @@ class MiniMap:
         # FOR DEBUGGING
         pygame.display.flip()
 
+
     def line_width(self, norm):
         if norm > 1.:
             raise ValueError("ERROR: Some point has sneaked out from the unit circle!")
@@ -201,7 +201,7 @@ def translate_along_circle(point, circle, distance):
     :type point: numpy.ndarray
     :param circle: (center, radius), the circle to follow (positive counter-clockwise).
     :type circle: tuple[numpy.ndarray, float]
-    :param distance: Distance to translate measured in angle / radius.
+    :param distance: Distance to translate measured in angle * radius.
     :returns new_point: The new point position.
     """
 
@@ -231,7 +231,7 @@ def translate_along_circle(point, circle, distance):
         current_angle = np.angle(p_complex - c_complex)
 
         # Calculate the new angle after moving by the given distance
-        translation_angle = current_angle + distance * radius
+        translation_angle = current_angle + distance / radius
 
         # Calculate the new point position
         new_point_complex = c_complex + radius * np.exp(1j * translation_angle)
@@ -241,6 +241,14 @@ def translate_along_circle(point, circle, distance):
             new_point /= np.linalg.norm(new_point) - 1e-10
 
         return new_point, translation_angle
+
+
+def linearization_estimation(x_reference, y_reference, y_target):
+    x1, x2 = x_reference
+    y1, y2 = y_reference
+    x_target = x1 + (y_target - y1) * (x2 - x1) / (y2 - y1)
+
+    return x_target
 
 
 def rotate_normal(point, normal):

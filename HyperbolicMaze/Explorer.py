@@ -11,6 +11,7 @@ class Explorer:
 
     FORWARD = 2
     BACKWARDS = 0
+    relative_directions = ['B', 'R', 'F', 'L']
 
     x = 0
     y = 1

@@ -61,8 +61,8 @@ def find_circle_intersection_angles(circle):
 
     # Provide two initial guesses (roughly opposite each other on the unit circle)
     initial_guesses = [
-        (1, 0),  # First guess (on the unit circle)
-        (-1, 0)  # Second guess (opposite side of the unit circle)
+        (h, 0),  # First guess (on the unit circle)
+        (0, k)  # Second guess (opposite side of the unit circle)
     ]
 
     # Solve the system of equations for both initial guesses
@@ -81,39 +81,67 @@ def find_circle_intersection_angles(circle):
     return angles
 
 
-def brute_guessing_p2(p1, circle, d, num_samples):
+num_guessing_points = 100
+def brute_guessing_p2(p1, circle, facing_angle, d, plot=False):
     (h, k), r = circle
     limit_angles = find_circle_intersection_angles(circle)
-    angles = np.linspace(limit_angles[1], limit_angles[0])
 
     limit_points = [[h + r * np.cos(limit_angles[0]), k + r * np.sin(limit_angles[0])],
                     [h + r * np.cos(limit_angles[1]), k + r * np.sin(limit_angles[1])]]
     limit_points = np.array(limit_points)
-    three_points = np.vstack((limit_points, p1))
-    top_down_plot(circle, three_points)
 
+    if plot:
+        three_points = np.vstack((limit_points, p1))
+        top_down_plot(circle, three_points, show=False)
+
+    # Find in which direction the facing angle points
+    facing_vector = to_cartesian(1., facing_angle)
+    _, angle_from_circle_to_p1 = to_polar(p1[0] - h, p1[1] - k)
+    dot_0 = np.dot(facing_vector, limit_points[0] - p1)
+    if dot_0 > 0:  # If we seem to be facing limit point 0.
+        limit_points[1] = p1
+        limit_angles[1] = angle_from_circle_to_p1
+    else:  # If we seem to be facing limit point 1.
+        limit_points[0] = p1
+        limit_angles[0] = angle_from_circle_to_p1
+
+    angles = np.linspace(limit_angles[1], limit_angles[0], num_guessing_points)
     candidate_points = np.array([h + r * np.cos(angles), k + r * np.sin(angles)]).transpose()
 
-    dists = np.array([hyperbolic_distance(p1, p2) for p2 in candidate_points])
+    closest_angles = np.zeros(2)  # Placeholder for angles to points to the left and right of the true points.
+    corresponding_distances = np.zeros(2)
+    prev_distance = hyperbolic_distance(p1, candidate_points[0])
 
-    plt.plot(angles, dists)
-    plt.show()
+    # Find the closest angles.
+    for i in range(1, num_guessing_points):
+        distance = hyperbolic_distance(p1, candidate_points[i])
+        if np.sign(distance - d) != np.sign(prev_distance - d):
+            closest_angles[0] = angles[i-1]
+            closest_angles[1] = angles[i]
+            corresponding_distances[0] = prev_distance
+            corresponding_distances[1] = distance
+            break
 
-    # Initialize best variables
-    best_p2 = None
-    best_distance_error = np.inf
+        prev_distance = distance
 
-    # Evaluate each candidate point
-    for p2 in candidate_points:
-        distance = hyperbolic_distance(p1, p2)
-        error = np.abs(distance - d)
+    # Use linearization for a sophisticated guess on the true angle.
+    p2_angle = MiniMap.linearization_estimation(closest_angles, corresponding_distances, d)
+    p2 = np.array([h + r * np.cos(p2_angle), k + r * np.sin(p2_angle)])
 
-        # Update if this point is better
-        if error < best_distance_error:
-            best_distance_error = error
-            best_p2 = p2
+    if plot:
+        plt.scatter(p2[0], p2[1], s=30, color='black')
+        plt.plot([h, limit_points[0][0]], [k, limit_points[0][1]], color='b', linestyle='--')
+        plt.plot([h, limit_points[1][0]], [k, limit_points[1][1]], color='b', linestyle='--')
 
-    return best_p2
+        plt.figure()
+        distances = [hyperbolic_distance(p1, p2) for p2 in candidate_points]
+        plt.plot(angles, distances, color='b')
+        plt.plot(angles, d*np.ones(num_guessing_points), color='black', linestyle='--', linewidth=2)
+        guessed_distance = hyperbolic_distance(p1, p2)
+        plt.plot(angles, guessed_distance * np.ones(num_guessing_points), color='red')
+        plt.show()
+
+    return p2
 
 
 def plot_instance(circle, z, s_1, s_2):
@@ -177,7 +205,7 @@ def plot_instance(circle, z, s_1, s_2):
     plt.show()
 
 
-def top_down_plot(circle, points):
+def top_down_plot(circle, points, show=True):
     # Unpack the input
     center, radius = circle
     fig, ax = plt.subplots()
@@ -207,7 +235,8 @@ def top_down_plot(circle, points):
     ax.set_xlabel('X-axis')
     ax.set_ylabel('Y-axis')
 
-    plt.show()
+    if show:
+        plt.show()
 
 
 def find_z0(circle):
@@ -231,8 +260,7 @@ def compute_outputs(point, circle, z, printt=False, plot=False):
 
     #solution_1 = fsolve(circle_equation, initial_guess_1, args=(circle, rho_squared))
     #solution_2 = fsolve(circle_equation, initial_guess_2, args=(circle, rho_squared))
-    solution_1 = brute_guessing_p2(point, circle, 0.1, 1000)
-    #solution_2 = brute_guessing_p2(point, circle, 0.1, 1000)
+    solution_1 = brute_guessing_p2(point, circle, 0., 1., plot=True)
 
     if printt:
         print(f"c = ({circle[0][0]:.2f}, {circle[0][1]:.2f}), r = {circle[1]:.2f}, point = ({point[0]:.2f}, {point[1]:.2f}), p2 = ({solution_1[0]:.2f}, {solution_1[1]:.2f}), distance = {hyperbolic_distance(point, solution_1)}")
@@ -240,9 +268,8 @@ def compute_outputs(point, circle, z, printt=False, plot=False):
     if plot:
         curve_min = find_z0(circle)
         #plot_instance(circle, z, solution_1, solution_2)
-        top_down_plot(circle, [point, solution_1, solution_2])
 
-    return solution_1, solution_2
+    return solution_1
 
 
 def generate_randomized_data(num_samples, printt=False, plot=False):
@@ -259,9 +286,8 @@ def generate_randomized_data(num_samples, printt=False, plot=False):
 
         z[i] = z0 + (6. - z0) * np.random.rand()
 
-        s1, s2 = compute_outputs(p_cartesian, circle, z[i], printt=printt, plot=plot)
+        s1 = compute_outputs(p_cartesian, circle, z[i], printt=printt, plot=plot)
         x1[i], y1[i] = s1
-        x2[i], y2[i] = s2
 
 
     X = np.stack([p_r, p_phi, N_phi, z], axis=1)
@@ -289,7 +315,7 @@ def generate_grid_data(n, num_levels):
 
 
 if __name__ == '__main__':
-    generate_randomized_data(num_samples=3, printt=True, plot=False)
+    generate_randomized_data(num_samples=10, printt=True, plot=False)
     #generate_grid_data(n=10, num_levels=2)
 
 
