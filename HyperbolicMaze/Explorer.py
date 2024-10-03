@@ -116,6 +116,9 @@ class Player(Explorer):
                 self.rotation += 360
 
     def get_facing(self):
+        """
+        :returns: The index to the wall the player is looking towards.
+        """
         return ((round(self.rotation)-225) % 360)//90
 
 

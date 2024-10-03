@@ -99,15 +99,13 @@ class DynamicMaze:
         return wall_map
 
 
-def get_empty_map(num_layers):
+def get_plain_map(num_layers, walls='openings'):
     maze = DynamicMaze()
     HyperbolicGrid.bulk_registration(maze.adjacency_map, "", num_layers)
     for key in maze.adjacency_map:
         if maze.adjacency_map[key] is not None:
-            maze.wall_map[key] = [1, 1, 1, 1]  # Making a map with no walls
+            maze.wall_map[key] = [1, 1, 1, 1] if walls == 'openings' else [-1, -1, -1, -1]
 
-    explorer = Explorer.Player()
-
-    return maze, explorer
+    return maze
 
 

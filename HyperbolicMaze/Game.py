@@ -2,10 +2,10 @@ import time
 
 import pygame
 import numpy as np
-import multiprocessing
 import config
 
-from DynamicMaze import DynamicMaze
+from MiniMap import MiniMap
+import DynamicMaze
 from Rendering2D import Rendering2D
 from Rendering3D import Rendering3D
 from Explorer import Player
@@ -15,8 +15,10 @@ def run_game():
     if config.fixed_seed:
         np.random.seed(config.seed)
     explorer = Player()
-    maze = DynamicMaze()
-    renderer = Rendering3D(maze, explorer)
+    maze = DynamicMaze.get_plain_map(5, 'walls')
+    maze.wall_map[''][3] = 1
+    maze.wall_map['L'][1] = 1
+    renderer = MiniMap(maze, explorer)
     renderer.update()
 
     flip = False
@@ -57,7 +59,9 @@ def run_game():
         elif flip and not keys[pygame.K_KP0]:
             if isinstance(renderer, Rendering3D):
                 renderer = Rendering2D(maze, explorer)
-            else:
+            elif isinstance(renderer, Rendering2D):
+                renderer = MiniMap(maze, explorer)
+            elif isinstance(renderer, MiniMap):
                 renderer = Rendering3D(maze, explorer)
             pressed = True
             flip = False
@@ -66,22 +70,23 @@ def run_game():
         if keys[pygame.K_p]:
             print1 = True
         elif print1 and not keys[pygame.K_p]:
-            print("Full adjacency map:")
-            for tile, adjacents in maze.adjacency_map.items():
-                print(tile, ":", adjacents)
+            renderer.print_debug_info()
             print1 = False
 
         # Print the whole adjacency_list with 'o'
         if keys[pygame.K_o]:
             print2 = True
         elif print2 and not keys[pygame.K_o]:
-            #renderer.print_debug_info()
+            print("Full adjacency map:")
+            for tile, adjacents in maze.adjacency_map.items():
+                print(tile, ":", adjacents)
             print2 = False
 
         if pressed:
             renderer.update()
 
     pygame.quit()
+
 
 if __name__ == '__main__':
     run_game()

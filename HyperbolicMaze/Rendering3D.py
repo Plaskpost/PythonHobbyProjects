@@ -18,9 +18,9 @@ class Rendering3D(Rendering):
         super().__init__("First person view", dynamic_maze, explorer)
         self.vertical_scale = 50000
         self.edge_line_thickness = 1
-        self.wall_color = (255, 255, 255)
-        self.edge_color = (0, 0, 0)
-        self.floor_color = (100, 100, 100)
+        self.wall_color = self.WHITE
+        self.edge_color = self.BLACK
+        self.floor_color = self.GRAY
         self.background_color = (0, 0, 0)
 
         self.camera_y_angle = 0
@@ -297,6 +297,7 @@ class Rendering3D(Rendering):
 
 
 # ----------------------------- ERROR MESSAGE & STUFF -------------------------------
+
 
     def print_debug_info(self, current_tile, wall_direction_index, wall_segment, limits, front_left_point):
         print("")

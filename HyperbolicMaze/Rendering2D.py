@@ -15,12 +15,12 @@ class Rendering2D(Rendering):
         super().__init__("Overview", dynamic_maze, explorer)
         self.NUM_RAYS = 3
         self.SQUARE_SIZE = config.tile_size
-        self.WALL_THICKNESS = 5  # *2
-        self.SQUARE_COLOR = (255, 255, 255)
+        #self.WALL_THICKNESS = 5  # *2
+        self.SQUARE_COLOR = self.WHITE
         self.BG_COLOR = (60, 60, 60)
-        self.WALL_COLOR = (0, 0, 0)
-        self.TEXT_COLOR = (0, 0, 0)
-        self.DOT_COLOR = (255, 0, 0)
+        self.WALL_COLOR = self.BLACK
+        self.TEXT_COLOR = self.BLACK
+        self.DOT_COLOR = self.RED
 
         self.DOT_SIZE = config.player_radius
         self.screen.fill(self.BG_COLOR)
@@ -60,7 +60,7 @@ class Rendering2D(Rendering):
         square_center = -flip_y*self.explorer.pos + screen_position * self.SQUARE_SIZE + flip_y*self.SQUARE_SIZE//2
         square_center = np.dot(rotation_matrix, square_center)
         square_center = square_center + self.SCREEN_SIZE//2
-        self.draw_square(tuple(square_center), rotation_degrees, (self.SQUARE_SIZE, self.SQUARE_SIZE), self.SQUARE_COLOR)
+        draw_square(self.screen, tuple(square_center), rotation_degrees, (self.SQUARE_SIZE, self.SQUARE_SIZE), self.SQUARE_COLOR)
 
         # Label the tile
         text = self.font.render(tile, True, self.TEXT_COLOR)
@@ -109,15 +109,6 @@ class Rendering2D(Rendering):
             h = self.SQUARE_SIZE + 2*self.WALL_THICKNESS
         return x, y, w, h
 
-    def draw_square(self, center, rotation, size, color):
-        rect = pygame.Surface(size)
-        rect.fill(color)
-        square = pygame.Surface((size[0], size[1]), pygame.SRCALPHA)
-        pygame.draw.rect(square, color, (0, 0, size[0], size[1]))
-        rot_image = pygame.transform.rotate(square, 360-rotation)
-        rot_rect = rot_image.get_rect(center=center)
-        self.screen.blit(rot_image, rot_rect)
-
     def draw_all_squares(self):
         self.update_recursive(tile=self.explorer.pos_tile, prev_tile=None, screen_position=np.array([0, 0]))
 
@@ -141,3 +132,13 @@ class Rendering2D(Rendering):
 
     def print_debug_info(self, current_tile, wall_direction_index, wall_segment, limits, front_left_point):
         self.engine_3D.print_debug_info(current_tile, wall_direction_index, wall_segment, limits, front_left_point)
+
+
+def draw_square(screen, center, rotation, size, color):
+    rect = pygame.Surface(size)
+    rect.fill(color)
+    square = pygame.Surface((size[0], size[1]), pygame.SRCALPHA)
+    pygame.draw.rect(square, color, (0, 0, size[0], size[1]))
+    rot_image = pygame.transform.rotate(square, 360-rotation)
+    rot_rect = rot_image.get_rect(center=center)
+    screen.blit(rot_image, rot_rect)

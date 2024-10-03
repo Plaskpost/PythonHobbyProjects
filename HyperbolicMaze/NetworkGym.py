@@ -88,7 +88,7 @@ def train_model(num_samples):
         prev_loss = loss.item
 
     # Save the model
-    torch.save(model.state_dict(), 'NeuralNetwork/curve_solver_model.pth')
+    torch.save(model.state_dict(), 'SavedModels/curve_solver_model.pth')
 
 
 # Step 4: Predicting New Values
@@ -102,7 +102,7 @@ def predict_points(model, parameters):
 
 def load_model(name):
     model = CurveNet()
-    model.load_state_dict(torch.load(f'NeuralNetwork/{name}.pth'))
+    model.load_state_dict(torch.load(f'SavedModels/{name}.pth'))
     model.eval()
 
     return model

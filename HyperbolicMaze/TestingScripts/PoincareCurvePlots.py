@@ -2,14 +2,12 @@ import pygame
 import numpy as np
 
 import HyperbolicGrid
+import TrainingDataGenerator
 from DynamicMaze import DynamicMaze
 from Explorer import Player
 import MiniMap
 
 SCREEN_SIZE = 600
-
-point = np.array([0.2, 0.2])
-normal = np.array([-1., -0.1])
 
 
 def scaled_center(center):
@@ -20,28 +18,31 @@ def scaled_center(center):
 def scaled_radius(radius):
     return (SCREEN_SIZE // 2) * radius
 
-def draw_n_circles(n):
+def draw_n_circles(screen, point, n, normal, bar_value):
+    RED = (255, 0, 0)
+    WHITE = (255, 255, 255)
+
     new_point = point.__copy__()
     pygame.draw.circle(screen, RED, scaled_center(new_point), 5)
     circle = MiniMap.find_circle(point, normal)
+    facing_angle = np.pi / 2
     for i in range(n):
-        new_normal = MiniMap.find_normal(new_point, circle)
-        _, angle = MiniMap.to_polar(new_normal)
-        facing_angle = angle - np.pi/2
-
-        distance = MiniMap.get_step_distance(point, facing_angle, bar_value)
-        new_point, _ = MiniMap.translate_along_circle(new_point, circle, -distance)
+        new_point, angle_change = TrainingDataGenerator.brute_guessing_p2(new_point, circle, facing_angle, bar_value)
 
         pygame.draw.circle(screen, WHITE, scaled_center(circle[0]), scaled_radius(circle[1]), 1)
         pygame.draw.circle(screen, RED, scaled_center(new_point), 5)
 
-
-        perpendicular_normal = MiniMap.rotate_normal(new_point, new_normal)
+        facing_angle += angle_change
+        perpendicular_normal = MiniMap.to_cartesian(np.array([1., facing_angle]))
+        facing_angle += np.pi / 2
         circle = MiniMap.find_circle(new_point, perpendicular_normal)
 
 
 
-def draw_slider():
+def draw_slider(screen, slider_x, slider_y, slider_width, slider_height, bar_value, max_value, handle_radius):
+    GRAY = (100, 100, 100)
+    BLUE = (0, 0, 255)
+    WHITE = (255, 255, 255)
     pygame.draw.rect(screen, GRAY, (slider_x, slider_y, slider_width, slider_height))
 
     # Calculate handle position
@@ -50,14 +51,14 @@ def draw_slider():
 
     # Display the value as text
     font = pygame.font.Font(None, 20)
-    text = font.render(f"Value: {bar_value:.2f}", True, WHITE)
+    text = font.render(f"Value: {bar_value:.5f}", True, WHITE)
     screen.blit(text, (slider_x, slider_y - 40))
 
 
-if __name__ == '__main__':
+def run_slider_tweaking_game():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
-    #mini_map = MiniMap.MiniMap(screen, (300, 300), 600)
+    # mini_map = MiniMap.MiniMap(screen, (300, 300), 600)
 
     maze = DynamicMaze()
     HyperbolicGrid.bulk_registration(maze.adjacency_map, "", 3)
@@ -73,17 +74,17 @@ if __name__ == '__main__':
     slider_height = 10
     handle_radius = 10
 
-    # Bar values
-    bar_value = 0.01
-    max_value = 0.6
+    point = np.array([0.9, 0.0])
+    normal = np.array([-1., 0.0])
 
-    n = 3
+    # Bar values
+    bar_value = 1.06
+    max_value = 2.0
+
+    n = 5
 
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
-    GRAY = (100, 100, 100)
-    BLUE = (0, 0, 255)
-    RED = (255, 0, 0)
 
     running = True
     while running:
@@ -103,15 +104,33 @@ if __name__ == '__main__':
                     if slider_x <= mouse_x <= slider_x + slider_width:
                         bar_value = (mouse_x - slider_x) / slider_width * max_value
 
-
         screen.fill(BLACK)
         pygame.draw.circle(screen, WHITE, (SCREEN_SIZE // 2, SCREEN_SIZE // 2), SCREEN_SIZE // 2, 2)
-        draw_n_circles(n)
-        draw_slider()
+        draw_n_circles(screen, point, n, normal, bar_value)
+        draw_slider(screen, slider_x, slider_y, slider_width, slider_height, bar_value, max_value, handle_radius)
 
         # Update the display
         pygame.display.flip()
 
+
+def run_moving_player_game():
+    pygame.init()
+    screen = pygame.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
+    # mini_map = MiniMap.MiniMap(screen, (300, 300), 600)
+
+    maze = DynamicMaze()
+    HyperbolicGrid.bulk_registration(maze.adjacency_map, "", 3)
+    for key in maze.adjacency_map:
+        if maze.adjacency_map[key] is not None:
+            maze.wall_map[key] = [-1, -1, -1, -1]  # Making a map with only walls
+
+    explorer = Player()
+
+
+
+
+if __name__ == '__main__':
+    run_moving_player_game()
 
 
 
