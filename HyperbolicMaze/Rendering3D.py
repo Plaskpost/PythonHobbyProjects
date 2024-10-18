@@ -3,6 +3,8 @@ import time
 
 import numpy as np
 import pygame.display
+
+import MiniMap
 import config
 from Rendering import Rendering
 
@@ -14,7 +16,7 @@ class Rendering3D(Rendering):
     right = 0
     left = 1
 
-    def __init__(self, dynamic_maze, explorer):
+    def __init__(self, dynamic_maze, explorer, include_mini_map=False):
         super().__init__("First person view", dynamic_maze, explorer)
         self.vertical_scale = 50000
         self.edge_line_thickness = 1
@@ -31,12 +33,18 @@ class Rendering3D(Rendering):
 
         self.debugging_in_2D = False
         self.wall_cut = True
+        self.include_mini_map = include_mini_map
+
+        self.mini_map = MiniMap.MiniMap(dynamic_maze, explorer, self.SCREEN_SIZE[0] / 4, 'bottom-right')
 
     def update(self):
         self.draw_background()
         self.draw_walls()
         self.write_debug_info()
-        pygame.display.flip()
+
+        if self.include_mini_map:
+            self.mini_map.update()
+
 
     def draw_background(self):
         screen_width = self.SCREEN_SIZE[0]
@@ -81,8 +89,6 @@ class Rendering3D(Rendering):
                 if inner_left[self.phi] < 0.:
                     inner_left[self.phi] += 360.
 
-            # Debug stop
-            a = 0
             #if self.explorer.pos_tile == "" and self.explorer.global_index_to_previous_tile == 2:
             #   self.print_debug_info(probe.pos_tile, i, wall_segment, (left_angle_limit, right_angle_limit), inner_left)
 
@@ -132,7 +138,7 @@ class Rendering3D(Rendering):
 
                 # Recursion call.
                 new_probe = probe.__copy__()
-                new_probe.transfer_tile(self.maze, global_index, local_index)
+                new_probe.transfer_tile(self.maze, local_index, global_index)
                 self.draw_walls_recursive(probe=new_probe, prev=new_probe.local_index_to_previous,
                                           right_angle_limit=right_options[sorted_right_indices[0]],
                                           left_angle_limit=left_options[sorted_left_indices[0]],

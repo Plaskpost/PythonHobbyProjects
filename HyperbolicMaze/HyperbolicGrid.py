@@ -1,7 +1,8 @@
 from collections import deque
 
+d = ["D", "R", "U", "L"]
+
 def check_opposites(a, b):
-    d = ["D", "R", "U", "L"]
     shifted_a = d[d.index(a) - 2]
     if shifted_a == b:
         return True
@@ -28,19 +29,22 @@ def quad_partner(s):
     elif quad == "URRD":
         return pre_s + "RUUL"
     else:
-        print("ERROR: ", quad, " has no partner!")
+        raise RuntimeWarning("WARNING: ", s, " has no partner!")
         return None
 
 
 def quad_partner_in_keys(s, adjacency_map):
-    return len(s) >= 4 and check_opposites(s[-1], s[-4]) and s[-2] == s[-3] and quad_partner(s) in adjacency_map
+    return len(s) >= 4 \
+        and check_opposites(s[-1], s[-4]) \
+        and s[-2] == s[-3] \
+        and s[-2] != s[-1] \
+        and s[-2] != s[-4] \
+        and quad_partner(s) in adjacency_map
 
 
 # Main function in this context
 # Does at the moment not correct detoured labels.
 def register_tile(key, adjacency_map):
-
-    d = ["D", "R", "U", "L"]
     if key not in adjacency_map:
         print_map(adjacency_map)
         raise KeyError(f"ERROR: Request to register tile {key}, despite it hasn't appeared as a neighbor.")
@@ -83,7 +87,6 @@ def register_tile(key, adjacency_map):
 
 
 def iterative_registration(key, adjacency_map):
-    d = ["D", "R", "U", "L"]
     if key not in adjacency_map:
         print_map(adjacency_map)
         raise KeyError(f"ERROR: Request to register tile {key}, despite it hasn't appeared as a neighbor.")
@@ -107,7 +110,32 @@ def iterative_registration(key, adjacency_map):
     adjacency_map[key] = neighbors
     for neighbor in neighbors:
         if neighbor not in adjacency_map:
-            adjacency_map[neighbor] = None
+            adjacency_map[neighbor] = None  # Add the neighbor to the keys when we've established a tile with connection to them.
+        elif adjacency_map[neighbor] is not None and key not in adjacency_map[neighbor]:
+            # This if-statement should only trigger if the quad-partner has been registered instead.
+            continue
+            if key == 'RDDDL':
+                DRRUUL_reduction = iterative_reduction('DRRUUL', adjacency_map)
+                a = 0
+
+            reduced_self = iterative_reduction(key, adjacency_map)
+            if reduced_self != key:
+                a = 0
+            try:
+                neighbor_to_self_index = adjacency_map[neighbor].index(reduced_self)
+                # Daring move: If we can reduce self, we spare us the troubles of replacing self in all c
+                adjacency_map[neighbor][neighbor_to_self_index] = key
+            except ValueError:
+                # If we can't reduce self we must be able to reduce the name of self in neighbor's connections.
+                for i in range(4):  # Although we don't know which one it is. Optimization possibilities here everybody!
+                    neighneighbor = adjacency_map[neighbor][i]
+                    reduced_key = iterative_reduction(neighneighbor, adjacency_map)
+                    if reduced_key == key:
+                        adjacency_map[neighbor][i] = key
+                        break
+                else:
+                    raise ValueError(f"ERROR: No reduction of neighbors {adjacency_map[neighbor]} equaled {key}.")
+
     return True
 
 
@@ -130,7 +158,7 @@ def iterative_reduction(string, adjacency_map):
         for j in range(len(string_list) - 3, -1, -1):
             if check_opposites(string_list[j], string_list[j + 2]):
                 trio_reduction(string_list, j)
-                if j + 1 < len(string_list) - 1:
+                if j < len(string_list) - 2:  # If there's at least one letter ahead.
                     direction = rotation_direction(string_list[j], string_list[j + 1])
                     twist_from(string_list, j + 2, direction)
                 no_edits = False
@@ -142,10 +170,14 @@ def iterative_reduction(string, adjacency_map):
             current_prefix = ''.join(string_list[:j])
             if quad_partner_in_keys(current_prefix, adjacency_map):
                 new_prefix = quad_partner(current_prefix)
-                full = new_prefix + ''.join(string_list[(j+1):])
+                full = new_prefix + ''.join(string_list[j:])
                 string_list = list(full)
+                if j < len(string_list):
+                    direction = rotation_direction(string_list[j-1], string_list[j])
+                    twist_from(string_list, j, direction)
                 no_edits = False
                 break
+
 
     return ''.join(string_list)
 
@@ -171,16 +203,50 @@ def trio_reduction(string, start):
 
 
 def twist_from(string, index, direction):
-    d = ["D", "R", "U", "L"]
+    """
+
+    :param string:
+    :type string: list
+    :param index:
+    :param direction:
+    :return:
+    """
     for i in range(index, len(string)):
         letter = string[i]
         string[i] = d[(d.index(letter) + direction) % 4]
 
 
 def rotation_direction(fromm, to):
-    d = ["D", "R", "U", "L"]
+    """
+
+    :param fromm:
+    :param to:
+    :return:
+    """
     return (d.index(to) - d.index(fromm) + 1) % 4 - 1
 
+def drul_to_brfl(string, initial_direction='U'):
+    brfl = ['B', 'R', 'F', 'L']
+    brfl_string = ""
+    previous_direction = initial_direction
+    for s in string:
+        brfl_index = (d.index(s) - d.index(previous_direction) + 2) % 4
+        brfl_string += brfl[brfl_index]
+        previous_direction = s
+
+    return brfl_string
+
+def get_reversed_path_string(string):
+    s = ""
+    for i in range(len(string)-1, -1, -1):
+        s += opposite_of(string[i])
+
+    return s
+
+def opposite_of(letter):
+    if letter not in d:
+        raise ValueError(f"ERROR: {letter} is not a part of {d}.")
+    return d[d.index(letter) - 2]
 
 def print_map(adjacency_map):
     for name, adjacencies in adjacency_map.items():

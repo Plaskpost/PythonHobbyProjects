@@ -19,7 +19,7 @@ reference_points = reference_point_mat.reshape((4, 2))
 target_points = [[2, 2], [2, 4], [4, 2], [4, 4]]    # Target frame
 point = [1., 0.5]  # Point in the reference frame
 
-
+test_index = d.index('K')
 
 translated_point = MiniMap.bilinear_interpolation(reference_points, target_points, point)
 

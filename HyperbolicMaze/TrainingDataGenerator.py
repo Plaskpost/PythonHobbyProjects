@@ -3,6 +3,7 @@ from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 from collections import deque
 import DynamicMaze
+import HyperbolicGrid
 import config
 from Explorer import Explorer
 import Explorer as ex
@@ -104,7 +105,7 @@ def shortest_angle_sampling(limit_angles, num_guessing_points):
 
 
 num_guessing_points = 100
-def brute_guessing_p2(p1, circle, facing_angle, d, plot=False):
+def brute_guessing_p2(p1, circle, facing_angle, d=1.06, plot=False):
     (h, k), r = circle
 
     if np.isinf(r):  # If radius infinite we're on a line.
@@ -319,7 +320,7 @@ def compute_outputs(point, circle, z, printt=False, plot=False):
     #solution_2 = fsolve(circle_equation, initial_guess_2, args=(circle, rho_squared))
     point = np.array([0., 0.2])
     circle = ((float('inf'), 0.2), float('inf'))
-    solution_1 = brute_guessing_p2(point, circle, facing_angle=np.pi/2., d=1.06, plot=True)
+    solution_1 = brute_guessing_p2(point, circle, facing_angle=np.pi/2., plot=True)
 
     if printt:
         print(f"c = ({circle[0][0]:.2f}, {circle[0][1]:.2f}), r = {circle[1]:.2f}, point = ({point[0]:.2f}, {point[1]:.2f}), p2 = ({solution_1[0]:.2f}, {solution_1[1]:.2f}), distance = {hyperbolic_distance(point, solution_1)}")
@@ -375,7 +376,7 @@ def find_coordinates_and_circles(maze, explorer, tile_center_screen_placement):
 
 
 def find_tile_specific_coordinates(queue, probe, maze, all_steps, visited, current_circle, projection_coord,
-                                   circular_direction, facing_angle, relative_journey):
+                                   current_circular_direction, current_facing_angle, local_journey):
     """
     Loops through three of the tile's neighbors in order: forward, right, left (previous tile as reference), finds
     the coordinated of the blocks to draw and adds neighboring tiles to the queue.
@@ -388,55 +389,88 @@ def find_tile_specific_coordinates(queue, probe, maze, all_steps, visited, curre
     :param visited: A set of visited tiles.
     :param projection_coord:
     :type projection_coord: numpy.ndarray
-    :param circular_direction: Which way is forward on the current circle. 1 for counter-clockwise and -1 for clockwise.
-    :param facing_angle: Angle of the direction forward along the current circle arc.
-    :param relative_journey: A string of letters (B, R, F, L) that tells how the probe has traversed.
+    :param current_circular_direction: Which way is forward on the current circle. 1 for counter-clockwise and -1 for clockwise.
+    :param current_facing_angle: Angle of the direction forward along the current circle arc.
+    :param local_journey: A string of letters (D, R, U, L) that tells how the probe has traversed relative the player tile.
     :return:
     """
 
-    all_steps[relative_journey] = (projection_coord, current_circle)
+    all_steps[local_journey] = (projection_coord, current_circle)
 
     # Find the circle perpendicular to the current one
     current_normal = MiniMap.find_normal(projection_coord, current_circle)
     perpendicular_normal = MiniMap.rotate_normal(projection_coord, current_normal)
     perpendicular_circle = MiniMap.find_circle(projection_coord, perpendicular_normal)
 
-    circle = current_circle
-
-    for exploration_direction in (MiniMap.MiniMap.exploration_directions if relative_journey != '' else MiniMap.MiniMap.exploration_directions + [Explorer.BACKWARDS]):
+    #Ssome for-loop preparations
+    exploration_directions = ['D', 'R', 'U', 'L']
+    forward = exploration_directions.index(local_journey[-1]) if local_journey != '' \
+        else int((1 + np.round(4. * current_facing_angle / (2. * np.pi))) % 4)
+    right = (forward - 1) % 4
+    left = (forward + 1) % 4
+    for direction_index in range(4):
+        if (direction_index - 2) % 4 == forward and local_journey != '':
+            continue  # Skip steps backwards.
         probe_ahead = probe.__copy__()
-        if not probe_ahead.directional_tile_step(maze, exploration_direction):
+        if not probe_ahead.transfer_tile(maze, direction_index):
             continue  # Skip any step towards a tile that hasn't been generated in the maze.
 
-        # Make changes if we're turning to a sideways direction
-        if exploration_direction == Explorer.RIGHT or exploration_direction == Explorer.LEFT:
-            circle = perpendicular_circle
-            if exploration_direction == Explorer.RIGHT:
-                facing_angle -= np.pi / 2.
-                circular_direction = MiniMap.get_circular_direction(circle, projection_coord, facing_angle)
-            else:  # Left.
-                facing_angle += np.pi  # Adding half a lap as this angle was the other way around in the last loop.
-                circular_direction = -circular_direction  # Same here, we re-use the computation from last time.
-        elif exploration_direction == Explorer.BACKWARDS:
+        # Set parameters
+        if direction_index == forward:
             circle = current_circle
-            facing_angle += np.pi / 2.
+            facing_angle = current_facing_angle
+            circular_direction = current_circular_direction
+        elif direction_index == right or direction_index == left:
+            circle = perpendicular_circle
+            facing_angle = current_facing_angle - np.pi / 2. if direction_index == right else current_facing_angle + np.pi / 2.
+            circular_direction = MiniMap.get_circular_direction(circle, projection_coord, facing_angle)
+        else:  # Backwards (only from first tile).
+            circle = current_circle
+            facing_angle = current_facing_angle + np.pi
+            circular_direction = -current_circular_direction
 
-        projection_coord_ahead, translation_angle = brute_guessing_p2(projection_coord, circle, facing_angle, MiniMap.MiniMap.d)
-
-        # Lastly, add neighbors to queue
-        if maze.wall_map[probe_ahead.pos_tile][probe_ahead.global_index_to_previous_tile] != 0 and \
-                probe_ahead.pos_tile not in visited:
+        # The call we all came here for
+        projection_coord_ahead, translation_angle = brute_guessing_p2(projection_coord, circle, facing_angle)
+        # Lastly, add neighbors to queue.
+        if probe_ahead.pos_tile not in visited:
             facing_angle_ahead = facing_angle + translation_angle  # First update the facing angle.
-            relative_journey_ahead = relative_journey + Explorer.relative_directions[exploration_direction]
+            local_journey_ahead = local_journey + exploration_directions[direction_index]
             visited.add(probe_ahead.pos_tile)
             queue.append([probe_ahead, maze, all_steps, visited, circle, projection_coord_ahead,
-                          circular_direction, facing_angle_ahead, relative_journey_ahead])
+                          circular_direction, facing_angle_ahead, local_journey_ahead])
+
+
+def hyperbolic_traverse(starting_point, step_sequence):
+    """
+    Starts from starting_point in the unit circle, follows the hyperbolic curves along step_sequence and returns the
+    coordinates at the end.
+
+    :param starting_point: Cartesian coordinates for the starting point in the unit circle.
+    :param step_sequence: A string with steps ('D', 'R', 'U', 'L') to take.
+    :returns: Coordinates at the destination.
+    """
+    turn_sequence = HyperbolicGrid.drul_to_brfl(step_sequence)
+    brfl = ['B', 'R', 'F', 'L']
+    angle_changes = [np.pi, -np.pi/2., 0., np.pi/2.]
+    facing_angle = np.pi/2.
+    point = starting_point
+
+    for step in turn_sequence:
+        facing_angle += angle_changes[brfl.index(step)]
+        normal = to_cartesian(1., facing_angle + np.pi/2.)
+        circle = MiniMap.find_circle(point, normal)
+
+        point, angle_diff = brute_guessing_p2(point, circle, facing_angle)
+        facing_angle += angle_diff
+
+
+    return point
 
 
 
 
 def generate_grid_data(num_levels):
-    n = config.num_grid_bins + 1
+    n = config.num_grid_points
     linspace = np.linspace(start=0., stop=1., num=n)
     maze = DynamicMaze.get_plain_map(num_levels)
     explorer = ex.Player()
@@ -455,8 +489,73 @@ def generate_grid_data(num_levels):
 
         print(f"{(i+1)*n} out of {n*n} operations complete.")
 
-    with open(f'SavedModels/GridMapDict{config.num_grid_bins}x{config.num_grid_bins}.json', 'w') as json_file:
+    with open(f'SavedModels/GridMapDict{config.num_grid_points}x{config.num_grid_points}.json', 'w') as json_file:
         json.dump(full_dict, json_file)
+
+
+def generate_neighbor_respecting_grid_data(num_levels):
+    n = config.num_grid_points
+    linspace = np.linspace(start=0., stop=1., num=n)
+    maze = DynamicMaze.get_plain_map(num_levels)
+    explorer = ex.Player()
+    full_dict = {}
+    corner_steps = [[['U', 'UR', 'R', 'RU'], ['R', 'RD', 'D', 'DR']], [['U', 'UL', 'L', 'LU'], ['L', 'LD', 'D', 'DL']]]
+    d = ['D', 'R', 'U', 'L']
+
+    for i in range(n):
+        for j in range(n):
+            tile_center_screen_placement = MiniMap.MiniMap.tile_size * (np.array([linspace[i], linspace[j]]) - 0.5)
+            if (i == 0 and j == 0) or (i == 0 and j == n-1) or (i == n-1 and j == 0) or (i == n-1 and j == n-1):  # If at a corner
+                all_centers = [tile_center_screen_placement]
+                for step_sequence in corner_steps[np.sign(i)][np.sign(j)]:
+                    probe = ex.Ray(explorer)
+                    probe.pos = -tile_center_screen_placement
+                    for step in step_sequence:
+                        probe.transfer_tile(maze, d.index(step), tile_size=MiniMap.MiniMap.tile_size)
+                    probe_tile_center = -probe.pos
+                    alternative_tile_center = hyperbolic_traverse(probe_tile_center,
+                                                                  HyperbolicGrid.get_reversed_path_string(step_sequence))
+                    all_centers.append(alternative_tile_center)
+
+                all_centers = np.array(all_centers)
+                tile_center_screen_placement = np.mean(all_centers, axis=0)
+
+            elif i == 0 or j == 0 or i == n-1 or j == n-1:  # If at edge
+                step = None
+                if i == 0:
+                    step = 'R'
+                elif i == n-1:
+                    step = 'L'
+                elif j == 0:
+                    step = 'U'
+                elif j == n-1:
+                    step = 'D'
+
+                probe = ex.Ray(explorer)
+                probe.pos = -tile_center_screen_placement
+                probe.transfer_tile(maze, d.index(step), tile_size=MiniMap.MiniMap.tile_size)
+                probe_tile_center = -probe.pos
+                alternative_tile_center = hyperbolic_traverse(probe_tile_center, HyperbolicGrid.opposite_of(step))
+                tile_center_screen_placement = np.mean(np.array([tile_center_screen_placement, alternative_tile_center]), axis=0)
+
+
+            position_dict = find_coordinates_and_circles(maze, explorer, tile_center_screen_placement)
+
+            # Traverse the dict to find all available corner points
+
+            if not full_dict:
+                for key in position_dict.keys():
+                    full_dict[key] = [[[0. for _ in range(2)] for _ in range(n)] for _ in range(n)]
+
+            for key in full_dict.keys():
+                full_dict[key][i][j] = list(position_dict[key][0])
+
+        print(f"{(i + 1) * n} out of {n * n} operations complete.")
+
+    with open(f'SavedModels/GridMapDict{config.num_grid_points}x{config.num_grid_points}.json', 'w') as json_file:
+        json.dump(full_dict, json_file)
+
+
 
 
 
@@ -466,7 +565,7 @@ def generate_grid_data(num_levels):
 
 if __name__ == '__main__':
     #generate_randomized_data(num_samples=10, printt=True, plot=False)
-    generate_grid_data(num_levels=5)
+    generate_neighbor_respecting_grid_data(num_levels=4)
 
 
 

@@ -11,13 +11,12 @@ class Explorer:
 
     FORWARD = 2
     BACKWARDS = 0
-    relative_directions = ['B', 'R', 'F', 'L']
+    #relative_directions = ['B', 'R', 'F', 'L']
 
     x = 0
     y = 1
 
-    def __init__(self, pos, pos_tile, global_prev, local_prev):
-        self.pos = pos
+    def __init__(self, pos_tile, global_prev, local_prev):
         self.pos_tile = pos_tile
         self.global_index_to_previous_tile = global_prev
         self.local_index_to_previous = local_prev
@@ -32,24 +31,20 @@ class Explorer:
         # "The amount of clockwise steps from direction_to_previous to direction_to_next is added to index_to_last."
         return (((local_index_to_next_tile - self.local_index_to_previous) % 4) + self.global_index_to_previous_tile) % 4
 
-    def transfer_tile(self, maze, global_index_to_new, local_index_to_new):
+    def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None):
+        if global_index_to_new is None:
+            global_index_to_new = self.global_index_to(local_index_to_new)
+
         # Change active tile
         new_tile = maze.adjacency_map[self.pos_tile][global_index_to_new]
+        if maze.adjacency_map[new_tile] is None:
+            return False
+
         self.global_index_to_previous_tile = maze.adjacency_map[new_tile].index(self.pos_tile)
         self.pos_tile = new_tile
         self.local_index_to_previous = self.opposite_of(local_index_to_new)
 
-        # Change local coordinates
-        if local_index_to_new == self.DOWN:
-            self.pos[self.y] += config.tile_size
-        elif local_index_to_new == self.RIGHT:
-            self.pos[self.x] -= config.tile_size
-        elif local_index_to_new == self.UP:
-            self.pos[self.y] -= config.tile_size
-        elif local_index_to_new == self.LEFT:
-            self.pos[self.x] += config.tile_size
-        else:
-            raise ValueError("Invalid direction!")
+        return True
 
     def directional_tile_step(self, maze, brfl):
         """
@@ -64,24 +59,39 @@ class Explorer:
         if maze.adjacency_map[maze.adjacency_map[self.pos_tile][global_index_to_new]] is None:
             return False
 
-        self.transfer_tile(maze, global_index_to_new, local_index_to_new)
+        self.transfer_tile(maze, local_index_to_new, global_index_to_new)
         return True
 
     def opposite_of(self, direction):
         return (direction + 2) % 4
 
     def __copy__(self):
-        return Explorer(self.pos.__copy__(), self.pos_tile,
-                        self.global_index_to_previous_tile, self.local_index_to_previous)
+        return Explorer(self.pos_tile, self.global_index_to_previous_tile, self.local_index_to_previous)
+
 
 
 class Player(Explorer):
 
     def __init__(self):
-        super().__init__(pos=np.array([config.tile_size / 2.0, config.tile_size / 2.0]), pos_tile="",
-                         global_prev=0, local_prev=Explorer.DOWN)
+        super().__init__(pos_tile="", global_prev=0, local_prev=Explorer.DOWN)
 
+        self.pos = np.array([config.tile_size / 2., config.tile_size / 2.])
         self.rotation = config.initial_rotation
+
+    def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None):
+        super().transfer_tile(maze, local_index_to_new, global_index_to_new)
+
+        # Change local coordinates
+        if local_index_to_new == self.DOWN:
+            self.pos[self.y] += config.tile_size
+        elif local_index_to_new == self.RIGHT:
+            self.pos[self.x] -= config.tile_size
+        elif local_index_to_new == self.UP:
+            self.pos[self.y] -= config.tile_size
+        elif local_index_to_new == self.LEFT:
+            self.pos[self.x] += config.tile_size
+        else:
+            raise ValueError("Invalid direction!")
 
     def move(self, maze, flbr):
         rotation_matrix = np.array([[0, -1], [1, 0]])
@@ -97,13 +107,13 @@ class Player(Explorer):
         across_edge = [(self.pos[1] < 0), (self.pos[0] >= config.tile_size),
                        (self.pos[1] >= config.tile_size), (self.pos[0] < 0)]
         for i in range(4):  # i in local {DOWN, RIGHT, UP, LEFT}
-            index_to_tile_ahead = self.global_index_to(i)
+            global_index_to_ahead = self.global_index_to(i)
             x_or_y = (1 + i) % 2
-            wall_ahead = maze.wall_map[self.pos_tile][index_to_tile_ahead] == -1
+            wall_ahead = maze.wall_map[self.pos_tile][global_index_to_ahead] == -1
             if near_edge[i] and wall_ahead:
                 self.pos[x_or_y] -= v[x_or_y]  # Move back.
             elif across_edge[i]:
-                self.transfer_tile(maze, index_to_tile_ahead, i)
+                self.transfer_tile(maze, i, global_index_to_ahead)
 
     def rotate(self, left, amount):
         if left:
@@ -125,8 +135,23 @@ class Player(Explorer):
 class Ray(Explorer):
 
     def __init__(self, player):
-        super().__init__(player.pos.__copy__(), player.pos_tile,
-                         player.global_index_to_previous_tile, player.local_index_to_previous)
+        super().__init__(player.pos_tile, player.global_index_to_previous_tile, player.local_index_to_previous)
+        self.pos = player.pos.__copy__()
+
+    def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None, tile_size=config.tile_size):
+        super().transfer_tile(maze, local_index_to_new, global_index_to_new)
+
+        # Change local coordinates
+        if local_index_to_new == self.DOWN:
+            self.pos[self.y] += tile_size
+        elif local_index_to_new == self.RIGHT:
+            self.pos[self.x] -= tile_size
+        elif local_index_to_new == self.UP:
+            self.pos[self.y] -= tile_size
+        elif local_index_to_new == self.LEFT:
+            self.pos[self.x] += tile_size
+        else:
+            raise ValueError("Invalid direction!")
 
     def shoot(self, maze, direction, debugging_in_2D):
         # Indices
@@ -221,6 +246,6 @@ class Ray(Explorer):
                 raise RuntimeError("Error: Distance", distance, " too large! Something must have gone wrong.")
 
             # Update ray object for next iteration.
-            self.transfer_tile(maze=maze, global_index_to_new=global_border_hit, local_index_to_new=local_border_hit)
+            self.transfer_tile(maze=maze, local_index_to_new=local_border_hit, global_index_to_new=global_border_hit)
 
         return distance

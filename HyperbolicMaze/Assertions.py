@@ -43,6 +43,18 @@ def test_iterative_registration():
     reduced_key = HyperbolicGrid.iterative_reduction(key, am)
     assert reduced_key == "DR"
 
+    key = "RDDDLU"
+    am["DRRU"] = ["DRR", "DRRUR", "DRRUU", "RDD"]
+    reduced_key = HyperbolicGrid.iterative_reduction(key, am)
+    assert reduced_key == 'DRRUU'
+
+def test_reverse_string():
+    assert HyperbolicGrid.get_reversed_path_string("UR") == "LD"
+    assert HyperbolicGrid.get_reversed_path_string("LDDRUUL") == "RDDLUUR"
+
+def test_brfl_convertion():
+    assert HyperbolicGrid.drul_to_brfl("UR", "U") == "FR"
+    assert HyperbolicGrid.drul_to_brfl("LLUDLUUL", "D") == "RFRBRRFL"
 
 
 if __name__ == '__main__':

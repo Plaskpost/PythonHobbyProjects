@@ -5,6 +5,7 @@ import pygame
 import sys
 import numpy as np
 import DynamicMaze
+import Game
 import HyperbolicGrid
 import Rendering2D
 import TrainingDataGenerator
@@ -15,7 +16,6 @@ from Rendering import Rendering
 
 
 class MiniMap(Rendering):
-    exploration_directions = [Explorer.FORWARD, Explorer.RIGHT, Explorer.LEFT]
     d = 1.06
     visible_range = 1.
     tile_size = 0.5
@@ -24,20 +24,29 @@ class MiniMap(Rendering):
         super().__init__('Poincaré map', dynamic_maze, explorer)
         self.map_size_on_screen = map_size
         if placement == 'center':
-            self.map_center = (self.SCREEN_SIZE // 2) * np.ones(2)
+            self.map_center = self.SCREEN_SIZE // 2
+        elif placement == 'bottom-right':
+            self.map_center = self.SCREEN_SIZE - map_size / 1.5
         else:
             raise ValueError(f"ERROR: I forgot to implement code for screen placement {placement}.")
 
-        self.grid_map_dict = load_grid_dict(f'GridMapDict{config.num_grid_bins}x{config.num_grid_bins}')
+        self.grid_map_dict = load_grid_dict(f'GridMapDict{config.num_grid_points}x{config.num_grid_points}')
+
+        self.player_tile = 'None'
+        self.ticks_since_tile_transition = 0
+        self.target_positions = {}
+        self.current_positions = {}
+        self.new_visible_tiles = set()
+        self.point_adjustment_rate = 0.18
+        self.color_adjustment_rate = 5
 
     def update(self):
-        self.screen.fill(self.BLACK)
         self.hyperbolic_map_display()
-        # self.all_circles_display()
+        #self.all_circles_display()
 
         self.write_debug_info()
-        pygame.display.flip()
-        pygame.display.update()
+
+        self.ticks_since_tile_transition += 1
 
     def all_circles_display(self):
         collection_set = TrainingDataGenerator.find_coordinates_and_circles(self.maze, self.explorer, self.get_tile_center_map_placement())
@@ -71,57 +80,89 @@ class MiniMap(Rendering):
 
 
     def hyperbolic_map_display(self):
-        step_set = self.find_steps()
+        visible_tiles, all_openings = self.find_steps()
 
-        # Background
-        #pygame.draw.circle(self.screen, self.BLACK, self.map_center, self.map_size_on_screen // 2, width=0)
-        pygame.draw.circle(self.screen, self.WHITE, self.map_center, self.map_size_on_screen // 2, 1)
+        # If a tile transition has occurred
+        if self.explorer.pos_tile != self.player_tile:
+            self.player_tile = self.explorer.pos_tile
+            self.new_visible_tiles = {k for k in visible_tiles.keys() if k not in self.target_positions}
+            self.ticks_since_tile_transition = 0  # Reset it if any new tiles
 
-        for step in step_set:
-            pygame.draw.line(self.screen, self.WHITE, self.screen_scaled_point(step[0]), self.screen_scaled_point(step[1]), 2)
+        for tile in visible_tiles.keys():
+            if tile not in self.target_positions:
+                self.new_visible_tiles.add(tile)
+
+        for tile in self.new_visible_tiles:
+            self.current_positions[tile] = visible_tiles[tile]
+
+        self.target_positions = visible_tiles
+        for tile, target in visible_tiles.items():
+            self.current_positions[tile] = self.nudge_point(self.current_positions[tile], target)
+
+        # Draw background
+        pygame.draw.circle(self.screen, self.BLACK, self.map_center, 5 + self.map_size_on_screen // 2, width=0)
+        pygame.draw.circle(self.screen, self.WHITE, self.map_center, 3 + self.map_size_on_screen // 2, 2)
+
+
+        for step in all_openings:
+            color_strength = min(self.ticks_since_tile_transition * self.color_adjustment_rate, 255) \
+                if step[0] in self.new_visible_tiles or step[1] in self.new_visible_tiles else 255
+            color = (color_strength, color_strength, color_strength)
+            p1 = self.current_positions[step[0]]
+            p2 = self.current_positions[step[1]]
+
+            #pygame.draw.line(self.screen, color, self.screen_scaled_point(p1), self.screen_scaled_point(p2), 2)
+            self.draw_step((p1, p2), color)
+            pygame.draw.circle(self.screen, color, self.screen_scaled_point(p1),
+                               self.screen_scaled_distance(line_width(np.linalg.norm(p1))), width=0)
+            pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(p2),
+                               self.screen_scaled_distance(line_width(np.linalg.norm(p2))), width=0)
 
         # Point representing the player
-        pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0, 0]), 5)
+        pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0., 0.]), 5)
 
 
     def find_steps(self):
-        all_steps = set()
+        all_openings = set()
         visited = {}
         probe = self.explorer.__copy__()
         reference_00_indices = self.find_00_indices()
 
-        queue = deque([[probe, all_steps, visited, reference_00_indices, '']])
+        queue = deque([[probe, all_openings, visited, reference_00_indices, '']])
 
         while queue:
             tile_pack = queue.popleft()
             self.find_tile_specific_step(queue, *tile_pack)
 
-        return all_steps
+        return visited, all_openings
 
 
-    def find_tile_specific_step(self, queue, probe, all_steps, visited, reference_00_indices, relative_journey):
-
-        tile_center = self.get_estimated_tile_center(reference_00_indices, self.grid_map_dict[relative_journey])
+    def find_tile_specific_step(self, queue, probe, all_openings, visited, reference_00_indices, local_journey):
+        tile_center = self.get_estimated_tile_center(reference_00_indices, self.grid_map_dict[local_journey])
 
         # Discard iteration if we're outside the visible range
         if np.linalg.norm(tile_center) > self.visible_range:
             return
 
-        visited[probe.pos_tile] = tile_center
+        # DEBUG TEXT
+        #self.debug_labels(tile_center, local_journey, probe.pos_tile)
 
-        for brfl in range(4):
+        visited[probe.pos_tile] = tile_center
+        d = ['D', 'R', 'U', 'L']
+        for direction_index in range(4):
             probe_ahead = probe.__copy__()
-            probe_ahead.directional_tile_step(self.maze, brfl)
-            journey_ahead = relative_journey + Explorer.relative_directions[brfl]
+            if not probe_ahead.transfer_tile(self.maze, direction_index):
+                continue
+            journey_ahead = local_journey + d[direction_index]
             # Add the step if neighboring tile has been visited
             if probe_ahead.pos_tile in visited:
-                all_steps.add((tuple(tile_center), tuple(visited[probe_ahead.pos_tile])))
-                # DEBUG TEXT
-                text = self.font.render(relative_journey, True, self.DEBUG_BLUE)
-                self.screen.blit(text, self.screen_scaled_point(tile_center))
+                index_to_ahead = self.maze.adjacency_map[probe.pos_tile].index(probe_ahead.pos_tile)
+                if self.maze.wall_map[probe.pos_tile][index_to_ahead] == 1:
+                    #all_openings.add((tuple(tile_center), tuple(visited[probe_ahead.pos_tile])))
+                    all_openings.add((probe.pos_tile, probe_ahead.pos_tile))
             # Otherwise add neighbor to the queue assuming we've mapped positions for it.
             elif journey_ahead in self.grid_map_dict:
-                queue.append([probe_ahead, all_steps, visited, reference_00_indices, journey_ahead])
+                queue.append([probe_ahead, all_openings, visited, reference_00_indices, journey_ahead])
 
 
 
@@ -144,6 +185,11 @@ class MiniMap(Rendering):
         return i, j
 
 
+    def nudge_point(self, point, target_point):
+        diff = target_point - point
+        return point + self.point_adjustment_rate * diff
+
+
     def get_estimated_tile_center(self, reference_00_indices, grid_mat):
         """
 
@@ -153,7 +199,7 @@ class MiniMap(Rendering):
         """
         player_tile_center = self.get_tile_center_map_placement()
         i, j = reference_00_indices
-        n = config.num_grid_bins
+        n = config.num_grid_points - 1
         reference_targets = grid_mat[i:(i + 2), j:(j + 2)]
         reference_targets = reference_targets.reshape((4, 2))
         reference_00_point = self.tile_size * (-0.5 + np.array([i / n, j / n]))
@@ -181,10 +227,11 @@ class MiniMap(Rendering):
         """
         return 1. - self.explorer.pos/config.tile_size
 
+
     def screen_scaled_point(self, point):
-        rotation_degrees = np.radians(360. - self.explorer.rotation + config.initial_rotation)
-        rotation_matrix = np.array([[np.cos(rotation_degrees), -np.sin(rotation_degrees)],
-                                    [np.sin(rotation_degrees), np.cos(rotation_degrees)]])
+        rotation = np.radians(360. - self.explorer.rotation + config.initial_rotation)
+        rotation_matrix = np.array([[np.cos(rotation), -np.sin(rotation)],
+                                    [np.sin(rotation), np.cos(rotation)]])
         new_point = np.matmul(rotation_matrix, point)
         new_point = self.map_center + (self.map_size_on_screen // 2) * np.array([new_point[0], -new_point[1]])
         return new_point
@@ -193,28 +240,19 @@ class MiniMap(Rendering):
         return (self.map_size_on_screen // 2) * distance
 
 
-    def draw_step(self, step_vector):
+    def draw_step(self, step_vector, color):
         x1, y1 = step_vector[0]
         x2, y2 = step_vector[1]
-
-        ta = line_width(np.linalg.norm(step_vector[0]))
-        tb = line_width(np.linalg.norm(step_vector[1]))
-
-        y1 *= -1
-        y2 *= -1
-
-        # Calculate the direction vector of the line
+        ta = line_width(np.linalg.norm(step_vector[0]))*0.95
+        tb = line_width(np.linalg.norm(step_vector[1]))*0.95
         dx = x2 - x1
         dy = y2 - y1
         length = math.hypot(dx, dy)
         if length == 0:
             return  # Avoid division by zero
 
-        # Normalize direction vector
         dx /= length
         dy /= length
-
-        # Calculate the perpendicular vector (normal) for the thickness
         nx = -dy
         ny = dx
 
@@ -229,19 +267,23 @@ class MiniMap(Rendering):
         y2_opposite = y2 - tb * ny
 
         # Define the points for the quadrilateral
-        points = np.array([(x1_offset, y1_offset), (x2_offset, y2_offset),
-                           (x2_opposite, y2_opposite), (x1_opposite, y1_opposite)])
+        points = [(x1_offset, y1_offset), (x2_offset, y2_offset),
+                  (x2_opposite, y2_opposite), (x1_opposite, y1_opposite)]
 
-        points = self.screen_placement + (self.map_size_on_screen // 2) * points
+        points = np.array([self.screen_scaled_point(point) for point in points])
 
-        # Draw the quadrilateral
-        pygame.draw.polygon(self.screen, (255, 255, 255), points)
-        # FOR DEBUGGING
-        pygame.display.flip()
+        pygame.draw.polygon(self.screen, color, points)
+
 
 
     def print_debug_info(self, current_tile, wall_direction_index, wall_segment, limits, front_left_point):
         pass
+
+    def debug_labels(self, tile_center, relative_journey, tile_key):
+        text1 = self.font.render(relative_journey, True, self.DEBUG_BLUE)
+        text2 = self.font.render(tile_key, True, self.RED)
+        self.screen.blit(text1, self.screen_scaled_point(tile_center))
+        self.screen.blit(text2, np.array([0, 10]) + self.screen_scaled_point(tile_center))
 
     def make_debug_lines(self):
         debug_lines = super().make_debug_lines()
@@ -258,7 +300,7 @@ def line_width(norm):
     if norm > 1.:
         raise ValueError("ERROR: Some point has sneaked out from the unit circle!")
     sin = np.sqrt(1 - np.power(norm, 2))  # Spherical function. Should probably change to hyperbolic.
-    return sin / 30.
+    return sin / 5.
 
 
 def get_circular_direction(circle, point, facing_angle):
@@ -323,6 +365,9 @@ def translate_along_circle(point, circle, distance):
 
 
 def linearization_estimation(x_reference, y_reference, y_target):
+    """
+    Using two points in a 2D-plane and the y-value for a third, finds the x-value of that point assuming linear correlation.
+    """
     if x_reference[0] == y_reference[0]:  # Edge case
         return x_reference[0]
 
@@ -335,14 +380,13 @@ def linearization_estimation(x_reference, y_reference, y_target):
 
 def bilinear_interpolation(reference_points, reference_targets, point):
     """
-    Assumes the standard points [[0, 0], [0, 1], [1, 0], [1, 1]] are translated to reference_targets, as well as linear
-    relation, and uses that to estimate a translated coordinate of point.
+    Takes a point in a plane, reference square in the same plane, and a translated version of the reference square.
 
+    :param reference_points: A reference square in the 2D-plane. The unit square would have the form: [[0, 0], [0, 1], [1, 0], [1, 1]]
     :param reference_targets: [p0, p1, p2, p3] translated from reference_points.
     :type reference_targets: list[list] or numpy.ndarray.
-    :param reference_points:
-    :param point: Point = [x, y] to be translated.
-    :return: Estimated translated point using the same linear transformation.
+    :param point: Point = [x, y] in the frame of reference_points.
+    :returns: Interpolated point following the same translation as reference_targets has done from reference_points.
     :rtype: list or numpy.ndarray.
     """
 
@@ -387,6 +431,11 @@ def rotate_normal(point, normal):
 
 
 def find_normal(point, circle):
+    """
+    :param point: A point on the circle.
+    :param circle: [center, radius], circle we're looking for the normal to.
+    :returns: A vector representing a normal to the circle at given point.
+    """
     center = circle[0]
     direction_vec = point - center
     norm = np.linalg.norm(direction_vec)
@@ -484,41 +533,7 @@ def load_grid_dict(filename):
     return loaded_dict
 
 
-
-# -------------- RETIRED FUNCTIONS ------------
-def get_step_distance(point, facing_angle, step_size):
-    p_r, p_phi = to_polar(point)
-    theta = facing_angle - p_phi
-    dzdr = 2 / (1 - p_r ** 2)
-    acceleration = dzdr * np.cos(theta)
-    step_distance = step_size * np.exp(acceleration)  # Current step function. Let's see how it works.
-    return step_distance
-
-
-
-
 # ------------------- TESTING THE MAP ---------------------
 
 if __name__ == '__main__':
-    pygame.init()
-    screen = pygame.display.set_mode((600, 600))
-    maze = DynamicMaze.DynamicMaze()
-    explorer = Player()
-    mini_map = MiniMap(maze, explorer)
-
-    HyperbolicGrid.bulk_registration(maze.adjacency_map, "", 2)
-    for key in maze.adjacency_map:
-        if maze.adjacency_map[key] is not None:
-            maze.wall_map[key] = [1, 1, 1, 1]  # Making a map with no walls
-
-
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-        mini_map.find_steps()
-
-        pygame.display.flip()
+    Game.run_game(default_render="MiniMap", maze=DynamicMaze.get_plain_map(4))

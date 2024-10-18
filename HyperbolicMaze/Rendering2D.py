@@ -85,28 +85,29 @@ class Rendering2D(Rendering):
     def draw_spotted_corners(self):
         self.engine_3D.draw_walls()
 
-    def where_wall(self, i, pos):  # Completely incorrect nowdays?
+    def where_wall(self, i, pos):  # Completely incorrect nowadays?
         x, y, w, h = None, None, None, None
+        thickness = config.wall_thickness
         if i == 0:
-            x = pos[0] - self.WALL_THICKNESS
-            y = pos[1] + self.SQUARE_SIZE - self.WALL_THICKNESS
-            w = self.SQUARE_SIZE + 2*self.WALL_THICKNESS
-            h = self.WALL_THICKNESS
+            x = pos[0] - thickness
+            y = pos[1] + self.SQUARE_SIZE - thickness
+            w = self.SQUARE_SIZE + 2*thickness
+            h = thickness
         elif i == 1:
-            x = pos[0] + self.SQUARE_SIZE - self.WALL_THICKNESS
-            y = pos[1] - self.WALL_THICKNESS
-            w = self.WALL_THICKNESS
-            h = self.SQUARE_SIZE + 2*self.WALL_THICKNESS
+            x = pos[0] + self.SQUARE_SIZE - thickness
+            y = pos[1] - thickness
+            w = thickness
+            h = self.SQUARE_SIZE + 2*thickness
         elif i == 2:
-            x = pos[0] - self.WALL_THICKNESS
+            x = pos[0] - thickness
             y = pos[1]
-            w = self.SQUARE_SIZE + 2*self.WALL_THICKNESS
-            h = self.WALL_THICKNESS
+            w = self.SQUARE_SIZE + 2*thickness
+            h = thickness
         elif i == 3:
             x = pos[0]
-            y = pos[1] - self.WALL_THICKNESS
-            w = self.WALL_THICKNESS
-            h = self.SQUARE_SIZE + 2*self.WALL_THICKNESS
+            y = pos[1] - thickness
+            w = thickness
+            h = self.SQUARE_SIZE + 2*thickness
         return x, y, w, h
 
     def draw_all_squares(self):
