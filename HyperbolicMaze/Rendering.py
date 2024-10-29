@@ -3,8 +3,16 @@ import config
 import numpy as np
 from abc import ABC, abstractmethod
 
-
 class Rendering(ABC):
+    """
+    Rendering Abstract Base Class
+
+    This class serves as an abstract base for rendering a dynamic maze exploration environment using Pygame.
+    The `Rendering` class manages the graphical display of a maze, including walls, player position,
+    and debugging information, which assists in visualizing both the state of the maze and the explorer's movements.
+    """
+
+    # Colors
     WHITE = (255, 255, 255)
     BLACK = (0, 0, 0)
     GRAY = (100, 100, 100)
@@ -20,7 +28,6 @@ class Rendering(ABC):
         self.explorer = explorer
         self.SCREEN_SIZE = np.array([config.screen_size[0], config.screen_size[1]])
 
-        self.drawn_wall_segments = []
 
     @abstractmethod
     def update(self):

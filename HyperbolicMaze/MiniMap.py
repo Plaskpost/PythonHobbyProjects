@@ -2,63 +2,97 @@ import json
 import math
 from collections import deque
 import pygame
-import sys
 import numpy as np
+
 import DynamicMaze
 import Game
-import HyperbolicGrid
 import Rendering2D
-import TrainingDataGenerator
+import DataGenerator
 import config
-from Explorer import Explorer
-from Explorer import Player
 from Rendering import Rendering
 
 
 class MiniMap(Rendering):
+    """
+    MiniMap Class
+
+    The `MiniMap` class extends the `Rendering` abstract base class to create a hyperbolic minimap on a Poincaré disc,
+    that visualizes the maze from above.
+
+    Main attributes:
+    -----------
+    - `d` (float): Hyperbolic distance between tile centers. Found it by accident. There might be some mathematical
+            motivation for its value.
+    - `visible_range` (float): Ensures not too many points close by the edge are included. Slightly redundant with the
+            current algorithm, as it also has a set radius of tiles that are included in the mini-map visualisation.
+    - `tile_size` (float): Width of one tile.
+    - `tile_generating` (bool): Allows generation of all tiles near the player if set True.
+    - `map_size_on_screen` (int): Size of the map in pixels on the screen, derived from config settings.
+    - `full_screen` (bool): Indicates whether the minimap occupies the entire screen or a smaller part.
+    - `map_center` (tuple[int, int]): Coordinates for the center point of the minimap on the screen.
+    - `grid_map_dict` (dict): Precomputed dictionary of some coordinates of all nearby tiles as a tool to find relevant
+            coordinates more efficiently.
+    - `player_tile` (str): Identifies the current tile occupied by the player.
+    """
+
     d = 1.06
     visible_range = 1.
     tile_size = 0.5
 
-    def __init__(self, dynamic_maze, explorer, map_size=600, placement='center'):
+    def __init__(self, dynamic_maze, explorer, placement='center', tile_generating=False):
         super().__init__('Poincaré map', dynamic_maze, explorer)
-        self.map_size_on_screen = map_size
+        self.tile_generating = tile_generating  # Allows MiniMap to generate all tiles that would be visible on the map.
+        self.map_size_on_screen = config.mini_map_size  # Size of the map on the screen.
+        self.full_screen = False
         if placement == 'center':
+            self.full_screen = True
+            self.map_size_on_screen = np.min(self.SCREEN_SIZE)
             self.map_center = self.SCREEN_SIZE // 2
         elif placement == 'bottom-right':
-            self.map_center = self.SCREEN_SIZE - map_size / 1.5
+            self.map_center = self.SCREEN_SIZE - self.map_size_on_screen / 1.5
         else:
             raise ValueError(f"ERROR: I forgot to implement code for screen placement {placement}.")
 
         self.grid_map_dict = load_grid_dict(f'GridMapDict{config.num_grid_points}x{config.num_grid_points}')
-
         self.player_tile = 'None'
-        self.ticks_since_tile_transition = 0
+
+        # Currently unused variables:
         self.target_positions = {}
         self.current_positions = {}
         self.new_visible_tiles = set()
-        self.point_adjustment_rate = 0.18
+        self.point_adjustment_rate = 0.02
         self.color_adjustment_rate = 5
 
     def update(self):
+        """
+        Main function to update the display.
+        """
+        if self.full_screen:
+            self.screen.fill(self.BLACK)
         self.hyperbolic_map_display()
-        #self.all_circles_display()
+        # self.all_circles_display()  # Alternate display for debug purposes
 
-        self.write_debug_info()
+        # self.write_debug_info()
 
-        self.ticks_since_tile_transition += 1
-
+    # ----------------- DISPLAY FUNCTIONS ------------------------
     def all_circles_display(self):
-        collection_set = TrainingDataGenerator.find_coordinates_and_circles(self.maze, self.explorer, self.get_tile_center_map_placement())
+        """
+        Mainly written for debug purposes. Draws every circle path on the map, but uses the original but slow computation method.
+        """
+        collection_set = DataGenerator.find_coordinates_and_circles(self.maze, self.explorer,
+                                                                    self.get_tile_center_map_placement())
 
+        # Unit circle
         pygame.draw.circle(self.screen, self.WHITE, self.map_center, self.map_size_on_screen // 2, 1)
+
+        # Player square
         square_height = self.screen_scaled_distance(self.tile_size) - 2 * config.wall_thickness
-        Rendering2D.draw_square(self.screen, self.screen_scaled_point(self.get_tile_center_map_placement()), (self.explorer.rotation - config.initial_rotation),
+        Rendering2D.draw_square(self.screen, self.screen_scaled_point(self.get_tile_center_map_placement()),
+                                (self.explorer.rotation - config.initial_rotation),
                                 (square_height, square_height), (50, 50, 50))
 
-        for relative_tile_key, (tile_point, (circle_center, circle_radius)) in collection_set.items():
-
-            # Circle path first
+        for relative_tile_key, (tile_point, (circle_center, circle_radius), up_angle) in collection_set.items():
+            # Circle path
             if np.isinf(circle_radius):
                 x0 = -min(1., circle_center[1])
                 y0 = -min(1., circle_center[0])
@@ -78,93 +112,91 @@ class MiniMap(Rendering):
         # Point representing the player
         pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0, 0]), 5)
 
-
     def hyperbolic_map_display(self):
-        visible_tiles, all_openings = self.find_steps()
-
-        # If a tile transition has occurred
-        if self.explorer.pos_tile != self.player_tile:
-            self.player_tile = self.explorer.pos_tile
-            self.new_visible_tiles = {k for k in visible_tiles.keys() if k not in self.target_positions}
-            self.ticks_since_tile_transition = 0  # Reset it if any new tiles
-
-        for tile in visible_tiles.keys():
-            if tile not in self.target_positions:
-                self.new_visible_tiles.add(tile)
-
-        for tile in self.new_visible_tiles:
-            self.current_positions[tile] = visible_tiles[tile]
-
-        self.target_positions = visible_tiles
-        for tile, target in visible_tiles.items():
-            self.current_positions[tile] = self.nudge_point(self.current_positions[tile], target)
+        """
+        Main drawing function.
+        """
+        visible_tiles, all_walls = self.map_out_walls()
 
         # Draw background
         pygame.draw.circle(self.screen, self.BLACK, self.map_center, 5 + self.map_size_on_screen // 2, width=0)
         pygame.draw.circle(self.screen, self.WHITE, self.map_center, 3 + self.map_size_on_screen // 2, 2)
 
+        # Drawing the floor of every tile.
+        # self.draw_tiles(visible_tiles)
 
-        for step in all_openings:
-            color_strength = min(self.ticks_since_tile_transition * self.color_adjustment_rate, 255) \
-                if step[0] in self.new_visible_tiles or step[1] in self.new_visible_tiles else 255
-            color = (color_strength, color_strength, color_strength)
-            p1 = self.current_positions[step[0]]
-            p2 = self.current_positions[step[1]]
-
-            #pygame.draw.line(self.screen, color, self.screen_scaled_point(p1), self.screen_scaled_point(p2), 2)
-            self.draw_step((p1, p2), color)
-            pygame.draw.circle(self.screen, color, self.screen_scaled_point(p1),
-                               self.screen_scaled_distance(line_width(np.linalg.norm(p1))), width=0)
-            pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(p2),
-                               self.screen_scaled_distance(line_width(np.linalg.norm(p2))), width=0)
+        # Walls.
+        wall_thickness = (self.map_size_on_screen / 8000.) * config.wall_thickness
+        for tile_key, direction_index in all_walls:
+            corners = visible_tiles[tile_key][1:, :]
+            wall_corner_1 = corners[direction_index - 1, :]
+            wall_corner_2 = corners[direction_index, :]
+            if self.full_screen:
+                pygame.draw.line(self.screen, self.WHITE, self.screen_scaled_point(wall_corner_1),
+                                 self.screen_scaled_point(wall_corner_2), 2 * config.wall_thickness)
+            else:
+                self.draw_thicker_line((wall_corner_1, wall_corner_2), self.WHITE, thickness_multiplier=wall_thickness)
 
         # Point representing the player
-        pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0., 0.]), 5)
+        player_dot_size = (self.map_size_on_screen / 500.) * config.player_radius
+        pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0., 0.]), player_dot_size)
 
 
-    def find_steps(self):
-        all_openings = set()
-        visited = {}
+# ------------------- FUNCTIONS FOR FINDING ALL RELEVANT COORDINATES ----------------------
+
+    def map_out_walls(self):
+        """
+        Traverses the maze in BFS order to find walls and tile locations.
+        """
+        all_walls = set()
+        visited = {}  # {tile_key: [tile_center, bottom_right_corner, top_right_, top_left_, bottom_left_]}
         probe = self.explorer.__copy__()
-        reference_00_indices = self.find_00_indices()
+        reference_00_indices = self.find_00_indices()  # Index to bottom_left coordinates of current player subsquare.
 
-        queue = deque([[probe, all_openings, visited, reference_00_indices, '']])
+        queue = deque([[probe, all_walls, visited, reference_00_indices, '']])
 
         while queue:
             tile_pack = queue.popleft()
-            self.find_tile_specific_step(queue, *tile_pack)
+            self.tile_specific_mapping(queue, *tile_pack)
 
-        return visited, all_openings
+        return visited, all_walls
 
+    def tile_specific_mapping(self, queue, probe, all_walls, visited, reference_00_indices, local_journey):
+        """
+        Performs the recursive mapping algorithm for one tile, finding its coordinates, walls and adding neighboring
+        tiles to the queue.
 
-    def find_tile_specific_step(self, queue, probe, all_openings, visited, reference_00_indices, local_journey):
-        tile_center = self.get_estimated_tile_center(reference_00_indices, self.grid_map_dict[local_journey])
+        :param queue: For storing tiles to explore in BFS order.
+        :param probe: Explorer object for proper grid traversal.
+        :param all_walls: Set for collecting found walls.
+        :param visited: To track if a tile has already been visited by the algorithm.
+        :param reference_00_indices: Index to bottom_left coordinates of current player subsquare.
+        :param local_journey: A string segment telling the path traversed from the tile of the player.
+        :return:
+        """
+        tile_points = self.get_estimated_tile_points(reference_00_indices, self.grid_map_dict[local_journey])
+        tile_center = tile_points[0, :]
 
         # Discard iteration if we're outside the visible range
         if np.linalg.norm(tile_center) > self.visible_range:
             return
 
-        # DEBUG TEXT
-        #self.debug_labels(tile_center, local_journey, probe.pos_tile)
+        visited[probe.pos_tile] = tile_points
 
-        visited[probe.pos_tile] = tile_center
         d = ['D', 'R', 'U', 'L']
         for direction_index in range(4):
             probe_ahead = probe.__copy__()
-            if not probe_ahead.transfer_tile(self.maze, direction_index):
+            if not probe_ahead.transfer_tile(self.maze, direction_index, generate_for_unexplored=self.tile_generating):
                 continue
             journey_ahead = local_journey + d[direction_index]
             # Add the step if neighboring tile has been visited
             if probe_ahead.pos_tile in visited:
-                index_to_ahead = self.maze.adjacency_map[probe.pos_tile].index(probe_ahead.pos_tile)
-                if self.maze.wall_map[probe.pos_tile][index_to_ahead] == 1:
-                    #all_openings.add((tuple(tile_center), tuple(visited[probe_ahead.pos_tile])))
-                    all_openings.add((probe.pos_tile, probe_ahead.pos_tile))
+                global_index_to_ahead = self.maze.adjacency_map[probe.pos_tile].index(probe_ahead.pos_tile)
+                if self.maze.check_wall_with_placement(probe.pos_tile, global_index_to_ahead):
+                    all_walls.add((probe.pos_tile, direction_index))
             # Otherwise add neighbor to the queue assuming we've mapped positions for it.
             elif journey_ahead in self.grid_map_dict:
-                queue.append([probe_ahead, all_openings, visited, reference_00_indices, journey_ahead])
-
-
+                queue.append([probe_ahead, all_walls, visited, reference_00_indices, journey_ahead])
 
     def find_00_indices(self):
         """
@@ -184,51 +216,92 @@ class MiniMap(Rendering):
 
         return i, j
 
+    def adjust_instance_sets(self, visible_tiles):
+        """
+        Outdated function. The purpose was to make the map transition more smoothly between tiles, by letting every
+        tile's coordinates on the map move in small steps towards updated target values, which would prevent them from
+        "snapping" on to the new values. The approach was discarded when tile corners were included in the map, as it
+        would slowly rotate every tile that changed orientation compared to the player in an tile transition.
+        """
+        # If a tile transition has occurred
+        if self.explorer.pos_tile != self.player_tile:
+            self.player_tile = self.explorer.pos_tile
+            self.new_visible_tiles = {k for k in visible_tiles.keys() if k not in self.target_positions}
+
+        for tile in visible_tiles.keys():
+            if tile not in self.target_positions:
+                self.new_visible_tiles.add(tile)
+
+        for tile in self.new_visible_tiles:
+            self.current_positions[tile] = visible_tiles[tile]
+
+        self.target_positions = visible_tiles
+        for tile, target in visible_tiles.items():
+            self.current_positions[tile] = self.nudge_point(self.current_positions[tile], target)
 
     def nudge_point(self, point, target_point):
+        """
+        Also outdated partner function to adjust_instance_sets(). Moves a point towards its target values.
+        """
         diff = target_point - point
         return point + self.point_adjustment_rate * diff
 
-
-    def get_estimated_tile_center(self, reference_00_indices, grid_mat):
+    def get_estimated_tile_points(self, reference_00_indices, grid_mat):
         """
+        Utilizes a grid matrix of saved coordinates for some tile near the player, to estimate the tile's position on
+        the map given the player's current coordinates.
 
-        :param reference_00_indices:
-        :param grid_mat:
-        :return:
+        :param reference_00_indices: The player is located on some square in the grid. This parameter gives the indices
+            to the bottom-left corner of that square in the grid matrix.
+        :param grid_mat: Grid matrix of coordinates for some tile given player positions on every point in the grid
+            between -+tile_size / 2 = player tile center at +-tile_size / 2.
+        :returns: 5x2 array of estimated coordinates for [tle_center, bottom_right_corner, top_right_corner,
+            top_left_corner, bottom_left_corner] of the tile in question.
         """
+        tile_points = np.zeros((5, 2))
+
         player_tile_center = self.get_tile_center_map_placement()
         i, j = reference_00_indices
         n = config.num_grid_points - 1
         reference_targets = grid_mat[i:(i + 2), j:(j + 2)]
-        reference_targets = reference_targets.reshape((4, 2))
+        reference_targets = reference_targets.reshape((4, 5, 2))
         reference_00_point = self.tile_size * (-0.5 + np.array([i / n, j / n]))
         reference_points = reference_00_point + self.tile_size / n * np.array([[0., 0.], [0., 1.], [1., 0.], [1., 1.]])
-        tile_center = bilinear_interpolation(reference_points, reference_targets, player_tile_center)
 
-        return tile_center
+        for i in range(5):
+            tile_points[i, :] = bilinear_interpolation(reference_points, reference_targets[:, i, :], player_tile_center)
 
+        return tile_points
 
     def get_tile_center_map_placement(self, player_unit_pos=None):
         """
-        :param unit_pos: Point within the unit square that represents the player's position.
+        Returns the coordinates of the center of the tile of the player. May be used with another specified value,
+        but will fetch self.explorer.pos as player position otherwise.
+
+        :param player_unit_pos: Point within the unit square that represents the player's position.
         :returns: The unscaled position in the unit circle of the center of the tile the player is standing in.
         """
         if player_unit_pos is None:
-            player_unit_pos = self.explorer.pos/config.tile_size
+            player_unit_pos = self.explorer.pos / config.tile_size
         elif player_unit_pos.any() < 0. or player_unit_pos.any() > 1.:
             raise ValueError(f"ERROR: Point {player_unit_pos} outside the unit square.")
 
+        # One of the few Euclidean calculations in this class. Because of the short distance, it would be a little
+        # computationally overkill to try to find the relative hyperbolic position.
         return self.tile_size * (0.5 - player_unit_pos)
 
     def get_tile_center_unit_square_placement(self):
         """
-        :returns: The position of the tile center inside the unit square, given the player position.
+        Returns the position of the tile center inside the unit square, given the player position.
         """
-        return 1. - self.explorer.pos/config.tile_size
+        return 1. - self.explorer.pos / config.tile_size
 
 
+# ----------------------- SCREEN AND DRAWING FUNCTIONS --------------------------
     def screen_scaled_point(self, point):
+        """
+        Returns the screen adapted coordinates of a given point.
+        """
         rotation = np.radians(360. - self.explorer.rotation + config.initial_rotation)
         rotation_matrix = np.array([[np.cos(rotation), -np.sin(rotation)],
                                     [np.sin(rotation), np.cos(rotation)]])
@@ -237,20 +310,45 @@ class MiniMap(Rendering):
         return new_point
 
     def screen_scaled_distance(self, distance):
+        """
+        Returns the screen adapted scalar.
+        """
         return (self.map_size_on_screen // 2) * distance
 
+    def draw_tiles(self, visible_tiles):
+        """
+        Draws every found tile as a polygon between its four corner points.
+        """
+        for tile_key, tile_points in visible_tiles.items():
+            # color_strength = min(self.ticks_since_tile_transition * self.color_adjustment_rate, 255) \
+            #    if tile_key in self.new_visible_tiles else 255
+            # color = (color_strength, color_strength, color_strength)
 
-    def draw_step(self, step_vector, color):
-        x1, y1 = step_vector[0]
-        x2, y2 = step_vector[1]
-        ta = line_width(np.linalg.norm(step_vector[0]))*0.95
-        tb = line_width(np.linalg.norm(step_vector[1]))*0.95
+            polygon_points = [tuple(self.screen_scaled_point(tile_points[i + 1, :])) for i in range(4)]
+
+            pygame.draw.polygon(self.screen, self.GRAY, polygon_points)
+            self.debug_labels(tile_points[0, :], tile_key, color=self.RED)
+
+    def draw_thicker_line(self, line, color, thickness_multiplier=1.):
+        """
+        Draws a "line" between two points given in line = (p1, p2), but thickness of both ends are determined by how far
+        away they are from the circle center.
+
+        :param line: (p1, p2), the two points to draw the line between.
+        :param color: (r, g, b), color of the line.
+        :param thickness_multiplier: An optional parameter to adjust the thickness of the line futrher.
+        :return:
+        """
+        x1, y1 = line[0]
+        x2, y2 = line[1]
+        ta = line_width(line[0]) * thickness_multiplier
+        tb = line_width(line[1]) * thickness_multiplier
         dx = x2 - x1
         dy = y2 - y1
         length = math.hypot(dx, dy)
+        # Avoid division by zero
         if length == 0:
-            return  # Avoid division by zero
-
+            return
         dx /= length
         dy /= length
         nx = -dy
@@ -269,19 +367,25 @@ class MiniMap(Rendering):
         # Define the points for the quadrilateral
         points = [(x1_offset, y1_offset), (x2_offset, y2_offset),
                   (x2_opposite, y2_opposite), (x1_opposite, y1_opposite)]
-
         points = np.array([self.screen_scaled_point(point) for point in points])
 
         pygame.draw.polygon(self.screen, color, points)
+        pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(line[0]),
+                           5.4 * line_width(line[0]))
+        pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(line[1]),
+                           5.4 * line_width(line[1]))
 
 
+# --------------------- FUNCTIONS FOR DEBUG SPECIFICATIONS -------------------
 
     def print_debug_info(self, current_tile, wall_direction_index, wall_segment, limits, front_left_point):
         pass
 
-    def debug_labels(self, tile_center, relative_journey, tile_key):
-        text1 = self.font.render(relative_journey, True, self.DEBUG_BLUE)
-        text2 = self.font.render(tile_key, True, self.RED)
+    def debug_labels(self, tile_center, string, second_string='', color=None, second_color=None):
+        color = self.DEBUG_BLUE if color is None else color
+        second_color = self.RED if second_color is None else second_color
+        text1 = self.font.render(string, True, color)
+        text2 = self.font.render(second_string, True, second_color)
         self.screen.blit(text1, self.screen_scaled_point(tile_center))
         self.screen.blit(text2, np.array([0, 10]) + self.screen_scaled_point(tile_center))
 
@@ -294,18 +398,11 @@ class MiniMap(Rendering):
         return debug_lines
 
 
-
-
-def line_width(norm):
-    if norm > 1.:
-        raise ValueError("ERROR: Some point has sneaked out from the unit circle!")
-    sin = np.sqrt(1 - np.power(norm, 2))  # Spherical function. Should probably change to hyperbolic.
-    return sin / 5.
-
+# ----------------------- STATIC FUNCTIONS WITH MORE MATH ------------------------
 
 def get_circular_direction(circle, point, facing_angle):
     """
-    Finds out if point with facing angle is facing clockwise (-1) or counter-clockwise (+1) around the circle.
+    Finds out if point with facing angle is facing clockwise (-1) or counter-clockwise (+1) around a circle.
     """
     point_to_c_vector = np.array(circle[0]) - point
     facing_vector = to_cartesian((1., facing_angle))
@@ -400,17 +497,17 @@ def bilinear_interpolation(reference_points, reference_targets, point):
 
     p0_ref, p1_ref, p2_ref, p3_ref = reference_points
 
-    # Step 1: Compute scaling factors in both x and y directions
+    # Compute scaling factors in both x and y directions
     scale_x = np.linalg.norm(p2_ref - p0_ref)  # Distance between [0, 0] and [1, 0]
     scale_y = np.linalg.norm(p1_ref - p0_ref)  # Distance between [0, 0] and [0, 1]
 
-    # Step 2: Compute translation (shift from [0, 0])
+    # Compute translation (shift from [0, 0])
     translation = p0_ref  # Reference point p0_ref is where [0, 0] in the unit square is mapped
 
-    # Step 3: Transform the point to the unit square coordinates
+    # ransform the point to the unit square coordinates
     point_in_unit_square = (point - translation) / [scale_x, scale_y]
 
-    # Step 4: Apply the bilinear interpolation in the target frame
+    # Apply the bilinear interpolation in the target frame
     p0_tgt, p1_tgt, p2_tgt, p3_tgt = reference_targets
     x, y = point_in_unit_square
 
@@ -464,12 +561,6 @@ def find_circle(point, normal):
     :type normal: np.ndarray
     :return: The center and radius of the circle.
     """
-    #if np.linalg.norm(point) >= 1:
-    #    raise ValueError(f"ERROR: The point must be within the unit circle. {point} is an invalid location.")
-
-    # normal = normal / np.linalg.norm(normal)  # Normalize the normal vector
-
-    # Calculate the denominator
     denominator = 2 * np.dot(point, normal)
 
     if pretty_much_0(denominator):
@@ -501,10 +592,23 @@ def find_circle(point, normal):
 
     return center, radius
 
-
 def pretty_much_0(val):
+    """
+    Since floating point values tend to cause some rounding errors, this function is here to replace 'val == 0.'.
+    """
     return np.abs(val) < 0.00001
 
+def line_width(point):
+    """
+    draw_thicker_line() adjusts thickness based on the edges' distances from the center. Here's how.
+    """
+    norm = np.linalg.norm(point)
+    if norm > 1.:
+        return 0.
+
+    # Spherical function instead of hyperbolic, because it looks cool. Like circulating around a planet.
+    sin = np.sqrt(1 - np.power(norm, 2))
+    return sin
 
 def to_polar(p_cartesian):
     x, y = p_cartesian
@@ -518,7 +622,6 @@ def to_cartesian(p_polar):
     x = r * np.cos(phi)
     y = r * np.sin(phi)
     return np.array([x, y])
-
 
 
 # ----------------- FILE LOADING --------------------
@@ -536,4 +639,4 @@ def load_grid_dict(filename):
 # ------------------- TESTING THE MAP ---------------------
 
 if __name__ == '__main__':
-    Game.run_game(default_render="MiniMap", maze=DynamicMaze.get_plain_map(4))
+    Game.run_game(default_render="MiniMap", maze=DynamicMaze.get_plain_map(6, 'walls+'))

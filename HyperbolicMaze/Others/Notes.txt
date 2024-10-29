@@ -1,4 +1,4 @@
-Rules:
+String operation rules:
 1. Add "D", "R", "U", "L" to the current string (Down, Right, Up, Left).
 2. Any last two letters being opposites ("DU", "UD", "LR", "RL) are removed.
 3. Whenever the third last letter and the last letter of an element are opposites,

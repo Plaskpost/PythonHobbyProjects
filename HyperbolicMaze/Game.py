@@ -3,6 +3,8 @@ import time
 
 import pygame
 import numpy as np
+
+import ScreenCapture
 import config
 
 import MiniMap
@@ -12,14 +14,15 @@ from Rendering3D import Rendering3D
 from Explorer import Player
 
 
-def run_game(default_render="3D", maze=None):
+def run_game(default_render="3D", maze=None, include_mini_map=True, mini_map_generates_tiles=False, screen_capture=False):
     if config.fixed_seed:
         np.random.seed(config.seed)
     explorer = Player()
     if maze is None:
         maze = DynamicMaze.DynamicMaze()
     if default_render == "3D":
-        renderer = Rendering3D(maze, explorer, True)
+        miniature_map = 'hyperbolic' if include_mini_map else None
+        renderer = Rendering3D(maze, explorer, miniature_map=miniature_map)
     elif default_render == "2D":
         renderer = Rendering2D(maze, explorer)
     elif default_render == "MiniMap":
@@ -39,6 +42,10 @@ def run_game(default_render="3D", maze=None):
                 renderer.update()
                 pygame.display.flip()
                 pygame.display.update()
+
+                if screen_capture:
+                    ScreenCapture.save_frame(renderer.screen)
+
                 last_render_time = current_time
 
     # Start the rendering thread
@@ -46,6 +53,8 @@ def run_game(default_render="3D", maze=None):
     render_thread.start()
 
     flip = False
+    mini_map_on_off = False
+    mini_map_on = include_mini_map
     print1 = False  # I hate this strategy
     print2 = False  # Still do
     while running:
@@ -73,20 +82,32 @@ def run_game(default_render="3D", maze=None):
         if keys[pygame.K_KP0]:
             flip = True
         elif flip and not keys[pygame.K_KP0]:
-            if isinstance(renderer, Rendering3D):
-                renderer = Rendering2D(maze, explorer)
-            elif isinstance(renderer, Rendering2D):
-                renderer = MiniMap.MiniMap(maze, explorer)
+            if isinstance(renderer, Rendering2D):
+                renderer = Rendering3D(maze, explorer, mini_map_on)
+            elif isinstance(renderer, Rendering3D):
+                renderer = MiniMap.MiniMap(maze, explorer, tile_generating=True)
             elif isinstance(renderer, MiniMap.MiniMap):
-                renderer = Rendering3D(maze, explorer, True)
+                renderer = Rendering2D(maze, explorer)
             flip = False
 
-        # Print the whole adjacency_list with 'p'
-        if keys[pygame.K_p]:
-            print1 = True
-        elif print1 and not keys[pygame.K_p]:
-            renderer.print_debug_info()
-            print1 = False
+        # Delete or bring back mini map with 'keypad 2'
+        if keys[pygame.K_KP2]:
+            mini_map_on_off = True
+        elif mini_map_on_off and not keys[pygame.K_KP2]:
+            mini_map_on = not mini_map_on
+            if isinstance(renderer, Rendering3D):
+                if mini_map_on:
+                    renderer.mini_map = MiniMap.MiniMap(maze, explorer, 'bottom-right')
+                else:
+                    renderer.mini_map = None
+            mini_map_on_off = False
+
+        # A segment of outdated debugging code. Will update it if I need it.
+        #if keys[pygame.K_p]:
+        #    print1 = True
+        #elif print1 and not keys[pygame.K_p]:
+        #    renderer.print_debug_info()
+        #    print1 = False
 
         # Print the whole adjacency_list with 'o'
         if keys[pygame.K_o]:

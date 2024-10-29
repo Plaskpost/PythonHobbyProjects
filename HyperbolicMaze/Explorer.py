@@ -4,6 +4,30 @@ import config
 
 
 class Explorer:
+    """
+    Represents a generic entity that can explore a maze, keeping track of its position and navigating between tiles.
+
+    Attributes:
+       - pos_tile (str): The current tile's identifying key.
+       - global_index_to_previous_tile (int): Tracks the global direction index (final to the tile) to the
+            previously visited tile.
+       - local_index_to_previous (int): Tracks the local direction index (relative to the explorer) to the
+            previously visited tile.
+
+    Methods:
+       - transfer_tile(maze, local_index_to_new, global_index_to_new=None, generate_for_unexplored=False):
+           Transfers the explorer to an adjacent tile, optionally generating new tiles if they do not exist.
+
+       - directional_tile_step(maze, brfl): Moves in a direction specified by 'back', 'right', 'forward' or 'left'.
+
+       - global_index_to(local_index_to_next_tile): Converts a local direction index to a global direction index.
+
+       - opposite_of(direction): Returns the index of the opposite direction for a given index.
+
+       - __copy__(): Creates a shallow copy of the Explorer instance.
+    """
+
+    # Constants
     DOWN = 0
     RIGHT = 1
     UP = 2
@@ -11,8 +35,8 @@ class Explorer:
 
     FORWARD = 2
     BACKWARDS = 0
-    #relative_directions = ['B', 'R', 'F', 'L']
 
+    # Index names
     x = 0
     y = 1
 
@@ -21,38 +45,46 @@ class Explorer:
         self.global_index_to_previous_tile = global_prev
         self.local_index_to_previous = local_prev
 
-    def global_index_to(self, local_index_to_next_tile):
-        """
-        Converts a local direction index to a global direction index, based on the explorer's trace record.
 
-        :param local_index_to_next_tile:
-        :return:
+    def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None, generate_for_unexplored=False):
         """
-        # "The amount of clockwise steps from direction_to_previous to direction_to_next is added to index_to_last."
-        return (((local_index_to_next_tile - self.local_index_to_previous) % 4) + self.global_index_to_previous_tile) % 4
+        Moves the explorer to another tile that is adjacent to its current one.
 
-    def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None):
+        :param maze: DynamicMaze object.
+        :param local_index_to_new: Local index (= index relative to the explorer's orientation) to the new tile.
+        :param global_index_to_new: This variable is computed based on the explorer's traversing history by default.
+            User may however specify a value, but may be cautious that incorrect values may cause unwanted "teleportation".
+        :param generate_for_unexplored: This variable is set to True if an attempted step into a non-existing tile
+            should trigger initialization of that tile.
+        :returns: True if the tile transfer was successful, otherwise False.
+        """
         if global_index_to_new is None:
             global_index_to_new = self.global_index_to(local_index_to_new)
 
-        # Change active tile
         new_tile = maze.adjacency_map[self.pos_tile][global_index_to_new]
         if maze.adjacency_map[new_tile] is None:
-            return False
+            if not generate_for_unexplored:
+                return False
+            else:
+                maze.register_tile(new_tile)
 
-        self.global_index_to_previous_tile = maze.adjacency_map[new_tile].index(self.pos_tile)
-        self.pos_tile = new_tile
         self.local_index_to_previous = self.opposite_of(local_index_to_new)
+        try:
+            self.global_index_to_previous_tile = maze.adjacency_map[new_tile].index(self.pos_tile)
+        except ValueError:
+            self.global_index_to_previous_tile = self.global_index_to(self.local_index_to_previous)
+            maze.adjacency_map[new_tile][self.global_index_to_previous_tile] = self.pos_tile
 
+        self.pos_tile = new_tile
         return True
 
     def directional_tile_step(self, maze, brfl):
         """
-        Transfers tile in a direction relative to where the explorer came from.
+        Transfers tile in a direction relative to which tile the explorer just came from.
 
         :param maze: DynamicMaze object.
         :param brfl: 0 = BACK, 1 = RIGHT, 2 = FORWARD, 3 = LEFT. Direction to move.
-        :return:
+        :returns: True if the tile transfer was successful, otherwise False.
         """
         local_index_to_new = (self.local_index_to_previous + brfl) % 4
         global_index_to_new = self.global_index_to(local_index_to_new)
@@ -62,7 +94,18 @@ class Explorer:
         self.transfer_tile(maze, local_index_to_new, global_index_to_new)
         return True
 
+
+    def global_index_to(self, local_index_to_next_tile):
+        """
+        Converts a local direction index to a global direction index, based on the explorer's trace record.
+        """
+        # "The amount of clockwise steps from direction_to_previous to direction_to_next is added to index_to_last."
+        return (((local_index_to_next_tile - self.local_index_to_previous) % 4) + self.global_index_to_previous_tile) % 4
+
     def opposite_of(self, direction):
+        """
+        Returns the index to the opposite direction of the given direction index.
+        """
         return (direction + 2) % 4
 
     def __copy__(self):
@@ -71,6 +114,28 @@ class Explorer:
 
 
 class Player(Explorer):
+    """
+    Represents a playable character navigating the maze, extending Explorer with specific movement and rotation
+    within tiles.
+
+    Attributes:
+        - pos (np.array): Current position in local coordinates within a tile, initialized to the center.
+        - rotation (float): Direction the player is facing, in degrees.
+
+    Methods:
+        - transfer_tile(maze, local_index_to_new, global_index_to_new=None, generate_for_unexplored=True):
+            Moves the player to an adjacent tile, adjusting local coordinates accordingly.
+
+        - move(maze, flbr): Adjusts the player’s position within a tile according to a direction (forward, left, back, right).
+
+        - rotate(left, amount): Rotates the player by a specified number of degrees in the specified direction.
+
+        - get_facing(): Returns the index of the wall in the direction the player is facing.
+
+    Notes:
+        - Requires `config` for tile size, initial rotation, and movement speed.
+        - Designed to handle relative positioning and directionality within a tile.
+    """
 
     def __init__(self):
         super().__init__(pos_tile="", global_prev=0, local_prev=Explorer.DOWN)
@@ -78,8 +143,9 @@ class Player(Explorer):
         self.pos = np.array([config.tile_size / 2., config.tile_size / 2.])
         self.rotation = config.initial_rotation
 
-    def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None):
-        super().transfer_tile(maze, local_index_to_new, global_index_to_new)
+
+    def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None, generate_for_unexplored=True):
+        super().transfer_tile(maze, local_index_to_new, global_index_to_new, generate_for_unexplored)
 
         # Change local coordinates
         if local_index_to_new == self.DOWN:
@@ -91,9 +157,12 @@ class Player(Explorer):
         elif local_index_to_new == self.LEFT:
             self.pos[self.x] += config.tile_size
         else:
-            raise ValueError("Invalid direction!")
+            raise ValueError(f"ERROR: {local_index_to_new} is an invalid direction")
 
     def move(self, maze, flbr):
+        """
+        Moves the player's position. Either forward, left, back or right.
+        """
         rotation_matrix = np.array([[0, -1], [1, 0]])
         rotation_matrix = np.linalg.matrix_power(rotation_matrix, flbr)
         v = config.movement_speed * np.array([math.cos(math.radians(self.rotation)),
@@ -116,6 +185,13 @@ class Player(Explorer):
                 self.transfer_tile(maze, i, global_index_to_ahead)
 
     def rotate(self, left, amount):
+        """
+        Rotates the player.
+
+        :param left: True if rotate to the left. False if rotate to the right.
+        :param amount: Number of degrees to rotate.
+        :return:
+        """
         if left:
             self.rotation += amount
             if self.rotation >= 360:
@@ -127,16 +203,37 @@ class Player(Explorer):
 
     def get_facing(self):
         """
-        :returns: The index to the wall the player is looking towards.
+        Returns the index to the wall the player is looking towards.
         """
         return ((round(self.rotation)-225) % 360)//90
 
 
 class Ray(Explorer):
+    """
+    Represents a ray-casting entity, extending Explorer to calculate distances to walls for vision simulation.
+
+    Attributes:
+        - pos (np.array): Local position within the tile, initialized to the player's position.
+
+    Methods:
+        - transfer_tile(maze, local_index_to_new, global_index_to_new=None, tile_size=config.tile_size):
+            Moves the ray to an adjacent tile, updating local coordinates.
+
+        - shoot(maze, direction, debugging_in_2D): Shoots the ray in a specified direction, measuring distance to
+            the first wall encountered.
+
+    Parameters:
+        - player (Player): The Player instance from which the ray inherits starting position and direction.
+
+    Notes:
+        - Uses a `config` module to access tile size and wall thickness values.
+        - Primarily used for collision detection or line-of-sight simulation in the maze.
+    """
 
     def __init__(self, player):
         super().__init__(player.pos_tile, player.global_index_to_previous_tile, player.local_index_to_previous)
         self.pos = player.pos.__copy__()
+
 
     def transfer_tile(self, maze, local_index_to_new, global_index_to_new=None, tile_size=config.tile_size):
         super().transfer_tile(maze, local_index_to_new, global_index_to_new)
@@ -151,10 +248,18 @@ class Ray(Explorer):
         elif local_index_to_new == self.LEFT:
             self.pos[self.x] += tile_size
         else:
-            raise ValueError("Invalid direction!")
+            raise ValueError(f"ERROR: {local_index_to_new} is an invalid direction")
 
     def shoot(self, maze, direction, debugging_in_2D):
-        # Indices
+        """
+        Shoots the ray in a given direction. Returns the distance to the first wall encountered in that direction.
+
+        :param maze: DynamicMaze object.
+        :param direction: Direction relative the player's facing, given in degrees.
+        :param debugging_in_2D: Set to True if the top view 2D debugging display is in use. That class wants to know
+            what tiles the ray traverses.
+        :returns: The distance to the first encountered wall in the given direction.
+        """
         x = self.x
         y = self.y
 

@@ -1,50 +1,33 @@
 from collections import deque
 
+"""
+Tile Adjacency Registration System
+
+This module contains all the logic for defining and handling which tiles are adjacent to each other.
+"""
+
+
 d = ["D", "R", "U", "L"]
-
-def check_opposites(a, b):
-    shifted_a = d[d.index(a) - 2]
-    if shifted_a == b:
-        return True
-    return False
-
-
-def quad_partner(s):
-    quad = s[-4:]
-    pre_s = s[:-4]
-    if quad == "LDDR":
-        return pre_s + "DLLU"
-    elif quad == "DLLU":
-        return pre_s + "LDDR"
-    elif quad == "RDDL":
-        return pre_s + "DRRU"
-    elif quad == "DRRU":
-        return pre_s + "RDDL"
-    elif quad == "LUUR":
-        return pre_s + "ULLD"
-    elif quad == "ULLD":
-        return pre_s + "LUUR"
-    elif quad == "RUUL":
-        return pre_s + "URRD"
-    elif quad == "URRD":
-        return pre_s + "RUUL"
-    else:
-        raise RuntimeWarning("WARNING: ", s, " has no partner!")
-        return None
+range_4_duplicates = {"LDDR": "DLLU", "DLLU": "LDDR",
+                      "RDDL": "DRRU", "DRRU": "RDDL",
+                      "LUUR": "ULLD", "ULLD": "LUUR",
+                      "RUUL": "URRD", "URRD": "RUUL"}
+range_5_duplicates = {'DRRUUL': 'RDDDL', 'RDDLLU': 'DRRRU',
+                      'DLLUUR': 'LDDDR', 'LDDRRU': 'DRRRU',
+                      'RUULLD': 'URRRD', 'URRDDL': 'RUUUL',
+                      'ULLDDR': 'LUUUR', 'LUURRD': 'ULLLD'}
 
 
-def quad_partner_in_keys(s, adjacency_map):
-    return len(s) >= 4 \
-        and check_opposites(s[-1], s[-4]) \
-        and s[-2] == s[-3] \
-        and s[-2] != s[-1] \
-        and s[-2] != s[-4] \
-        and quad_partner(s) in adjacency_map
-
-
-# Main function in this context
-# Does at the moment not correct detoured labels.
+# Main function in this context.
 def register_tile(key, adjacency_map):
+    """
+    Main function in this context. Takes in a tile key, generates suggested names for its neighbors and adds them to the
+    adjacency map.
+
+    :param key: Provided tile key.
+    :param adjacency_map: The adjacency map (dict) storing which tiles are neighbouring which.
+    :returns: True if the dile was successfully registered. False otherwise.
+    """
     if key not in adjacency_map:
         print_map(adjacency_map)
         raise KeyError(f"ERROR: Request to register tile {key}, despite it hasn't appeared as a neighbor.")
@@ -87,6 +70,14 @@ def register_tile(key, adjacency_map):
 
 
 def iterative_registration(key, adjacency_map):
+    """
+    A slower but more careful approach to register_tile(). Iterates through the suggested key string of each neighbor to
+    see if its name can be optimized further.
+
+    :param key: Provided tile key.
+    :param adjacency_map: The adjacency map (dict) storing which tiles are neighbouring which.
+    :returns: True if the dile was successfully registered. False otherwise.
+    """
     if key not in adjacency_map:
         print_map(adjacency_map)
         raise KeyError(f"ERROR: Request to register tile {key}, despite it hasn't appeared as a neighbor.")
@@ -111,36 +102,16 @@ def iterative_registration(key, adjacency_map):
     for neighbor in neighbors:
         if neighbor not in adjacency_map:
             adjacency_map[neighbor] = None  # Add the neighbor to the keys when we've established a tile with connection to them.
-        elif adjacency_map[neighbor] is not None and key not in adjacency_map[neighbor]:
-            # This if-statement should only trigger if the quad-partner has been registered instead.
-            continue
-            if key == 'RDDDL':
-                DRRUUL_reduction = iterative_reduction('DRRUUL', adjacency_map)
-                a = 0
-
-            reduced_self = iterative_reduction(key, adjacency_map)
-            if reduced_self != key:
-                a = 0
-            try:
-                neighbor_to_self_index = adjacency_map[neighbor].index(reduced_self)
-                # Daring move: If we can reduce self, we spare us the troubles of replacing self in all c
-                adjacency_map[neighbor][neighbor_to_self_index] = key
-            except ValueError:
-                # If we can't reduce self we must be able to reduce the name of self in neighbor's connections.
-                for i in range(4):  # Although we don't know which one it is. Optimization possibilities here everybody!
-                    neighneighbor = adjacency_map[neighbor][i]
-                    reduced_key = iterative_reduction(neighneighbor, adjacency_map)
-                    if reduced_key == key:
-                        adjacency_map[neighbor][i] = key
-                        break
-                else:
-                    raise ValueError(f"ERROR: No reduction of neighbors {adjacency_map[neighbor]} equaled {key}.")
 
     return True
 
 
 def iterative_reduction(string, adjacency_map):
+    """
+    A sub-function to iterative_registration(). Performs the repeated reduction attempts on a given key string.
 
+    :returns: The reduced string.
+    """
     string_list = [letter for letter in string]
     no_edits = False
     while not no_edits:
@@ -178,11 +149,30 @@ def iterative_reduction(string, adjacency_map):
                 no_edits = False
                 break
 
+        # 5.
+        for j in range(len(string_list), 5, -1):
+            current_prefix, substring_with_attention = (string_list[:(j-6)], ''.join(string_list[(j-6):j]))
+            if substring_with_attention in range_5_duplicates:
+                substring_with_attention = range_5_duplicates[substring_with_attention]
+                string_list = current_prefix + list(substring_with_attention) + string_list[j:]
+                if j < len(string_list):
+                    direction = rotation_direction(string_list[j - 1], string_list[j])
+                    twist_from(string_list, j, direction)
+                no_edits = False
+                break
 
     return ''.join(string_list)
 
 
 def bulk_registration(adjacency_map, origin, radius):
+    """
+    Registers multiple tiles at a specified "radius" around the specified origin tile.
+
+    :param adjacency_map: The adjacency map (dict) storing which tiles are neighbouring which.
+    :param origin: Tile in the center of the group of tiles to be registered.
+    :param radius: Tile steps away from the origin to include.
+    :return:
+    """
     queue = deque([(origin, 0)])
 
     while queue:
@@ -195,37 +185,94 @@ def bulk_registration(adjacency_map, origin, radius):
                 queue.append((neighbor, distance+1))
 
 
+def link_duplicates(adjacency_map, dominant_key, recessive_key):
+    """
+    Assumes the two keys describe the same tile. Removes the recessive and establishes its connections with the dominant.
+    """
+    dominant_neighbors = adjacency_map[dominant_key]
+    recessive_neighbors = adjacency_map[recessive_key]
+    if dominant_neighbors is None or recessive_neighbors is None:
+        raise ValueError("ERROR: Tried to link keys that are None in the adjacency_map.")
+
+    # Identify common neighbors
+    common_neighbors = set()
+    index_diff = 0
+    for i, neighbor_to_dominant in enumerate(dominant_neighbors):
+        for j, neighbor_to_recessive in enumerate(recessive_neighbors):
+            if neighbor_to_recessive == neighbor_to_dominant:
+                index_diff = i - j
+                common_neighbors.add(neighbor_to_dominant)
+
+    if not common_neighbors:
+        raise RuntimeError(f"ERROR: {dominant_key} and {recessive_key} claimed to describe same key but share no neighbors.")
+
+    for j, neighbor in enumerate(recessive_neighbors):
+        # Remove or ignore neighbors that aren't fully initialized.
+        if adjacency_map[neighbor] is None:
+            if neighbor not in common_neighbors:
+                del adjacency_map[neighbor]
+            continue
+
+
+        # Rerouting common neighbors' adjacencies to dominant_key.
+        if recessive_key in adjacency_map[neighbor]:
+            index = adjacency_map[neighbor].index(recessive_key)
+            adjacency_map[neighbor][index] = dominant_key
+
+        if neighbor not in common_neighbors:  # and is neither None, it's an established key that shouldn't exist.
+            dominant_index = (j + index_diff) % 4
+            dominant_neighbor = dominant_neighbors[dominant_index]
+
+            # To solve this, call the function recursively on the neighboring tile.
+            link_duplicates(adjacency_map, dominant_neighbor, neighbor)
+
+    del adjacency_map[recessive_key]
+    return recessive_key
+
+
+# ------------------- STRING OPERATIONS -------------------
+
 def trio_reduction(string, start):
+    """
+    If any part of the key string includes a turn in the same direction twice in a row, the string can be written
+    shorter. For example: the key 'ULD' turns left twice, while the key 'LU' reaches the same tile in fewer steps.
+
+    :param string: Full string to reduce.
+    :type string: list
+    :param start: Index to where the double-turn three-letter segment starts.
+    :return:
+    """
     del string[start+2]
     copy = string[start]
     string[start] = string[start+1]
     string[start+1] = copy
 
-
 def twist_from(string, index, direction):
     """
+    Most reductions affect the orientation of the map relative some unit that follows the steps described by the key
+    string. This function corrects the letters succeeding the reduced bloch of the string to follow this new orientation.
 
-    :param string:
+    :param string: Full string.
     :type string: list
-    :param index:
-    :param direction:
+    :param index: Index to the first letter in the string that should follow a new orientation.
+    :param direction: Direction of the orientation change. +n for n steps counter-clockwise. -n for n steps clockwise.
     :return:
     """
     for i in range(index, len(string)):
         letter = string[i]
         string[i] = d[(d.index(letter) + direction) % 4]
 
-
-def rotation_direction(fromm, to):
-    """
-
-    :param fromm:
-    :param to:
-    :return:
-    """
-    return (d.index(to) - d.index(fromm) + 1) % 4 - 1
-
 def drul_to_brfl(string, initial_direction='U'):
+    """
+    In some situations, it may be beneficial to keep track of how a unit "turns" when traversing the grid rather than
+    directions given some orientation. This function converts a key string given as "drul" = down/right/left/up to
+    brfl = back/right/forward/left given some initial direction.
+
+    :param string: full string
+    :param initial_direction: Since turning direction is based on the previous letter in the string, an initial
+    reference is needed to find the first entry.
+    :returns: string in brfl format.
+    """
     brfl = ['B', 'R', 'F', 'L']
     brfl_string = ""
     previous_direction = initial_direction
@@ -237,17 +284,85 @@ def drul_to_brfl(string, initial_direction='U'):
     return brfl_string
 
 def get_reversed_path_string(string):
+    """
+    Finds the "inverse" to a given key string = The string that describes the steps from the end tile to the origin tile.
+    """
     s = ""
     for i in range(len(string)-1, -1, -1):
         s += opposite_of(string[i])
 
     return s
 
+
+# ------------------ UTILITY FUNCTIONS --------------------
+
+def quad_partner_in_keys(s, adjacency_map):
+    """
+    The first tiles that can be described by two equally long key strings are four steps away from the origin.
+    These key strings I named "quad partners" (also applies to any two strings that are equal up to a pair of quad
+    partners). The function checks whether the quad partner to a given string is already registered in the map.
+
+    :param s: Key string.
+    :param adjacency_map: The adjacency map (dict) storing which tiles are neighbouring which.
+    :returns: True if there exists a quad partner and this one is present in the adjacency map already. False if not.
+    """
+    return len(s) >= 4 \
+        and check_opposites(s[-1], s[-4]) \
+        and s[-2] == s[-3] \
+        and s[-2] != s[-1] \
+        and s[-2] != s[-4] \
+        and quad_partner(s) in adjacency_map
+
+def quad_partner(s):
+    """
+    Finds the quad partner to a given key string, if any. Returns None if none exists. This function used to be a lot
+    more complicated, but I rewrote it to a simple lookup approach and let the rest of the code be.
+
+    :param s: Key string.
+    :returns: The quad partner to s if any exists. None if not.
+    """
+    quad = s[-4:]
+    pre_s = s[:-4]
+
+    try:
+        return pre_s + range_4_duplicates[quad]
+    except KeyError:
+        print("WARNING: ", s, " has no partner!")
+        return None
+
+def rotation_direction(fromm, to):
+    """
+    Most reductions affect the orientation of the map relative some unit that follows the steps described by the key
+    string. This function finds what rotation "direction" (+-n) is required to rotate 'fromm' to 'to'.
+
+    :param fromm: Reference letter ('D'/'R'/'U'/'L').
+    :param to: Target letter.
+    :returns: Direction of the orientation change. +n for n steps counter-clockwise. -n for n steps clockwise.
+    """
+    return (d.index(to) - d.index(fromm) + 1) % 4 - 1
+
+def check_opposites(a, b):
+    """
+    Checks whether letters at variables a and b point in the opposite directions.
+    """
+    if a not in d or b not in d:
+        raise ValueError(f"ERROR: {a} or {b} is not a valid direction.")
+
+    shifted_a = d[d.index(a) - 2]
+    if shifted_a == b:
+        return True
+    return False
+
 def opposite_of(letter):
+    """
+    Returns the letter pointing in the opposite direction to 'letter'.
+    """
     if letter not in d:
         raise ValueError(f"ERROR: {letter} is not a part of {d}.")
     return d[d.index(letter) - 2]
 
+
+# -------------------- DEBUG PRINT ---------------------
 def print_map(adjacency_map):
     for name, adjacencies in adjacency_map.items():
         print(f"{name} : {adjacencies}")

@@ -4,10 +4,9 @@ import torch.nn as nn
 import torch.optim as optim
 
 import MiniMap
-import TrainingDataGenerator
+import DataGenerator
 
 
-# Define the neural network model
 class CurveNet(nn.Module):
     def __init__(self):
         super(CurveNet, self).__init__()
@@ -88,7 +87,7 @@ def train_model(num_samples):
         prev_loss = loss.item
 
     # Save the model
-    torch.save(model.state_dict(), 'SavedModels/curve_solver_model.pth')
+    torch.save(model.state_dict(), '../SavedModels/curve_solver_model.pth')
 
 
 # Step 4: Predicting New Values

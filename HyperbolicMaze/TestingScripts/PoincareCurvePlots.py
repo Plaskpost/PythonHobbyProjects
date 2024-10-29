@@ -2,7 +2,7 @@ import pygame
 import numpy as np
 
 import HyperbolicGrid
-import TrainingDataGenerator
+import DataGenerator
 from DynamicMaze import DynamicMaze
 from Explorer import Player
 import MiniMap
