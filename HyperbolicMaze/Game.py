@@ -22,7 +22,8 @@ def run_game(default_render="3D", maze=None, include_mini_map=True, mini_map_gen
         maze = DynamicMaze.DynamicMaze()
     if default_render == "3D":
         miniature_map = 'hyperbolic' if include_mini_map else None
-        renderer = Rendering3D(maze, explorer, miniature_map=miniature_map)
+        renderer = Rendering3D(maze, explorer, miniature_map=miniature_map,
+                               mini_map_generates_tiles=mini_map_generates_tiles)
     elif default_render == "2D":
         renderer = Rendering2D(maze, explorer)
     elif default_render == "MiniMap":
@@ -64,6 +65,8 @@ def run_game(default_render="3D", maze=None, include_mini_map=True, mini_map_gen
 
         # I think this section can look better.
         keys = pygame.key.get_pressed()
+        if keys[pygame.K_q]:
+            running = False
 
         if keys[pygame.K_UP] or keys[pygame.K_KP8]:
             explorer.move(maze=maze, flbr=0)
@@ -85,7 +88,7 @@ def run_game(default_render="3D", maze=None, include_mini_map=True, mini_map_gen
             if isinstance(renderer, Rendering2D):
                 renderer = Rendering3D(maze, explorer, mini_map_on)
             elif isinstance(renderer, Rendering3D):
-                renderer = MiniMap.MiniMap(maze, explorer, tile_generating=True)
+                renderer = MiniMap.MiniMap(maze, explorer, tile_generating=mini_map_generates_tiles)
             elif isinstance(renderer, MiniMap.MiniMap):
                 renderer = Rendering2D(maze, explorer)
             flip = False

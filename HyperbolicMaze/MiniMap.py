@@ -69,48 +69,12 @@ class MiniMap(Rendering):
         """
         if self.full_screen:
             self.screen.fill(self.BLACK)
+
         self.hyperbolic_map_display()
-        # self.all_circles_display()  # Alternate display for debug purposes
 
         # self.write_debug_info()
 
     # ----------------- DISPLAY FUNCTIONS ------------------------
-    def all_circles_display(self):
-        """
-        Mainly written for debug purposes. Draws every circle path on the map, but uses the original but slow computation method.
-        """
-        collection_set = DataGenerator.find_coordinates_and_circles(self.maze, self.explorer,
-                                                                    self.get_tile_center_map_placement())
-
-        # Unit circle
-        pygame.draw.circle(self.screen, self.WHITE, self.map_center, self.map_size_on_screen // 2, 1)
-
-        # Player square
-        square_height = self.screen_scaled_distance(self.tile_size) - 2 * config.wall_thickness
-        Rendering2D.draw_square(self.screen, self.screen_scaled_point(self.get_tile_center_map_placement()),
-                                (self.explorer.rotation - config.initial_rotation),
-                                (square_height, square_height), (50, 50, 50))
-
-        for relative_tile_key, (tile_point, (circle_center, circle_radius), up_angle) in collection_set.items():
-            # Circle path
-            if np.isinf(circle_radius):
-                x0 = -min(1., circle_center[1])
-                y0 = -min(1., circle_center[0])
-                x1 = min(1., circle_center[1])
-                y1 = min(1., circle_center[0])
-                pygame.draw.line(self.screen, self.WHITE, self.screen_scaled_point([x0, y0]),
-                                 self.screen_scaled_point([x1, y1]), 1)
-            else:
-                pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(circle_center),
-                                   self.screen_scaled_distance(circle_radius), 1)
-
-            # The point representing the center of the tile
-            pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(tile_point), 5)
-            text = self.font.render(relative_tile_key, True, self.DEBUG_BLUE)
-            self.screen.blit(text, self.screen_scaled_point(tile_point))
-
-        # Point representing the player
-        pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0, 0]), 5)
 
     def hyperbolic_map_display(self):
         """
@@ -140,6 +104,44 @@ class MiniMap(Rendering):
         # Point representing the player
         player_dot_size = (self.map_size_on_screen / 500.) * config.player_radius
         pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0., 0.]), player_dot_size)
+
+    def all_circles_display(self):
+        """
+        Mainly written for debug purposes. Draws every circle path on the map, but uses the original but slow computation method.
+        """
+        collection_set = DataGenerator.find_coordinates_and_circles(self.maze, self.explorer,
+                                                                    self.get_tile_center_map_placement())
+
+        # Unit circle
+        pygame.draw.circle(self.screen, self.WHITE, self.map_center, self.map_size_on_screen // 2, 1)
+
+        # Player square
+        #square_height = self.screen_scaled_distance(self.tile_size) - 2 * config.wall_thickness
+        #Rendering2D.draw_square(self.screen, self.screen_scaled_point(self.get_tile_center_map_placement()),
+        #                        (self.explorer.rotation - config.initial_rotation),
+        #                        (square_height, square_height), (50, 50, 50))
+
+        for relative_tile_key, (tile_point, (circle_center, circle_radius), up_angle) in collection_set.items():
+            # Circle path
+            if np.isinf(circle_radius):
+                x0 = -min(1., circle_center[1])
+                y0 = -min(1., circle_center[0])
+                x1 = min(1., circle_center[1])
+                y1 = min(1., circle_center[0])
+                pygame.draw.line(self.screen, self.WHITE, self.screen_scaled_point([x0, y0]),
+                                 self.screen_scaled_point([x1, y1]), 1)
+            else:
+                pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(circle_center),
+                                   self.screen_scaled_distance(circle_radius), 1)
+
+            # The point representing the center of the tile
+            size = line_width(tile_point)
+            pygame.draw.circle(self.screen, self.WHITE, self.screen_scaled_point(tile_point), 8.*size)
+            #text = self.font.render(relative_tile_key, True, self.DEBUG_BLUE)
+            #self.screen.blit(text, self.screen_scaled_point(tile_point))
+
+        # Point representing the player
+        pygame.draw.circle(self.screen, self.RED, self.screen_scaled_point([0, 0]), 5)
 
 
 # ------------------- FUNCTIONS FOR FINDING ALL RELEVANT COORDINATES ----------------------

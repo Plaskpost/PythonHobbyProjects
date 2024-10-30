@@ -25,7 +25,7 @@ class Rendering3D(Rendering):
     right = 0
     left = 1
 
-    def __init__(self, dynamic_maze, explorer, miniature_map=None, title="First person view"):
+    def __init__(self, dynamic_maze, explorer, miniature_map=None, mini_map_generates_tiles=False, title="First person view"):
         super().__init__(title, dynamic_maze, explorer)
 
         # Drawing details
@@ -51,7 +51,7 @@ class Rendering3D(Rendering):
         # Miniature map
         self.mini_map = None
         if miniature_map == 'hyperbolic':
-            self.mini_map = MiniMap.MiniMap(dynamic_maze, explorer, 'bottom-right')
+            self.mini_map = MiniMap.MiniMap(dynamic_maze, explorer, 'bottom-right', tile_generating=mini_map_generates_tiles)
         elif miniature_map == 'ray view':
             self.mini_map = Rendering2D.Rendering2D(dynamic_maze, explorer, 'bottom-right')
 
